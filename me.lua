@@ -11,6 +11,8 @@
       * Search box in the top bar
       * Descriptions on sections and controls
       * Toggle, button, slider, dropdown, input, keybind, label and status
+      * Notification stack, secret toggle keybind and a touch-friendly floating button
+      * Responsive desktop/mobile two-column layout
       * Unload() removes the window and every tracked connection
 
     Quick start is included in AxelUI_Library_Example.luau.
@@ -368,17 +370,18 @@ function AxelUI:Notify(message, content, notificationType)
         BorderSizePixel = 0,
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
+        ZIndex = 301,
     }, holder)
     corner(card, 7)
     stroke(card, accent, 0.28, 1)
-    local stripe = new("Frame", { BackgroundColor3 = accent, BorderSizePixel = 0, Size = UDim2.new(0, 3, 1, 0) }, card)
+    local stripe = new("Frame", { BackgroundColor3 = accent, BorderSizePixel = 0, Size = UDim2.new(0, 3, 1, 0), ZIndex = 302 }, card)
     corner(stripe, 2)
-    local iconHolder = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(24, 24), Position = UDim2.fromOffset(12, 12) }, card)
-    local typeIcon = icon(iconHolder, data.Icon or icons[kind] or "info", 16, accent); typeIcon.Position = UDim2.fromOffset(4, 4)
-    local title = textLabel(card, data.Title or "Axel Hub", 12, self.Theme.Text, true); title.Position = UDim2.fromOffset(45, 8); title.Size = UDim2.new(1, -78, 0, 18)
-    local body = textLabel(card, data.Content or "", 10, self.Theme.SubText, false); body.Position = UDim2.fromOffset(45, 27); body.Size = UDim2.new(1, -56, 0, 30); body.TextWrapped = true; body.TextYAlignment = Enum.TextYAlignment.Top
-    local close = new("TextButton", { AutoButtonColor = false, BackgroundTransparency = 1, BorderSizePixel = 0, Text = "", Size = UDim2.fromOffset(20, 20), Position = UDim2.new(1, -27, 0, 8) }, card)
-    local closeIcon = icon(close, "x", 11, self.Theme.Muted); closeIcon.Position = UDim2.fromOffset(4, 4)
+    local iconHolder = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(24, 24), Position = UDim2.fromOffset(12, 12), ZIndex = 302 }, card)
+    local typeIcon = icon(iconHolder, data.Icon or icons[kind] or "info", 16, accent); typeIcon.Position = UDim2.fromOffset(4, 4); typeIcon.ZIndex = 303
+    local title = textLabel(card, data.Title or "Axel Hub", 12, self.Theme.Text, true); title.Position = UDim2.fromOffset(45, 8); title.Size = UDim2.new(1, -78, 0, 18); title.ZIndex = 302
+    local body = textLabel(card, data.Content or "", 10, self.Theme.SubText, false); body.Position = UDim2.fromOffset(45, 27); body.Size = UDim2.new(1, -56, 0, 30); body.TextWrapped = true; body.TextYAlignment = Enum.TextYAlignment.Top; body.ZIndex = 302
+    local close = new("TextButton", { AutoButtonColor = false, BackgroundTransparency = 1, BorderSizePixel = 0, Text = "", Size = UDim2.fromOffset(20, 20), Position = UDim2.new(1, -27, 0, 8), ZIndex = 302 }, card)
+    local closeIcon = icon(close, "x", 11, self.Theme.Muted); closeIcon.Position = UDim2.fromOffset(4, 4); closeIcon.ZIndex = 303
     local scale = new("UIScale", { Scale = 0.88 }, card)
     local closed = false
     local function closeCard()
@@ -414,6 +417,77 @@ end
 
 function AxelUI:SetToggleKeybind(key)
     self.ToggleKeybind = key or Enum.KeyCode.RightControl
+end
+
+function AxelUI:_applyResponsive()
+    if self._destroyed or not self.Window then return end
+    local viewport = Vector2.new(1280, 720)
+    pcall(function()
+        if workspace.CurrentCamera then viewport = workspace.CurrentCamera.ViewportSize end
+    end)
+    local mobile = viewport.X <= 760 or (UserInputService.TouchEnabled and viewport.X <= 900)
+    self.IsMobile = mobile
+
+    if mobile then
+        local width = math.max(300, math.min(480, viewport.X - 18))
+        local height = math.max(360, math.min(720, viewport.Y - 26))
+        self.Window.Size = UDim2.fromOffset(width, height)
+        self.Sidebar.Size = UDim2.new(0, 64, 1, -50)
+        self.PageHolder.Position = UDim2.fromOffset(64, 50)
+        self.PageHolder.Size = UDim2.new(1, -64, 1, -50)
+        self.NavTitle.Visible = false
+        self.Footer.Visible = false
+        self.HeaderSubtitle.Visible = false
+        self.FpsText.Visible = false
+        self.StatusDot.Visible = false
+        self.StatusText.Visible = false
+        self.Search.Position = UDim2.fromOffset(120, 10)
+        self.Search.Size = UDim2.new(1, -206, 0, 30)
+        self.SearchIcon.Position = UDim2.new(1, -96, 0, 17)
+        self.TabTitle.TextSize = 13
+        self.TabSubtitle.Visible = false
+        self.TabHeader.Size = UDim2.new(1, 0, 0, 38)
+        self.TabTitle.Position = UDim2.fromOffset(12, 8)
+        self.TouchButton.Visible = true
+        self.NotificationHolder.Size = UDim2.fromOffset(220, 0)
+        self.NotificationHolder.Position = UDim2.new(1, -10, 0, 58)
+    else
+        self.Window.Size = self.DesktopSize or UDim2.fromOffset(820, 560)
+        self.Sidebar.Size = UDim2.new(0, 170, 1, -50)
+        self.PageHolder.Position = UDim2.fromOffset(170, 50)
+        self.PageHolder.Size = UDim2.new(1, -170, 1, -50)
+        self.NavTitle.Visible = true
+        self.Footer.Visible = true
+        self.HeaderSubtitle.Visible = true
+        self.FpsText.Visible = true
+        self.StatusDot.Visible = true
+        self.StatusText.Visible = true
+        self.Search.Position = UDim2.fromOffset(245, 10)
+        self.Search.Size = UDim2.fromOffset(280, 30)
+        self.SearchIcon.Position = UDim2.fromOffset(500, 17)
+        self.TabTitle.TextSize = 15
+        self.TabSubtitle.Visible = true
+        self.TabHeader.Size = UDim2.new(1, 0, 0, 42)
+        self.TabTitle.Position = UDim2.fromOffset(16, 3)
+        self.TouchButton.Visible = false
+        self.NotificationHolder.Size = UDim2.fromOffset(300, 0)
+        self.NotificationHolder.Position = UDim2.new(1, -18, 0, 62)
+    end
+
+    for _, tab in ipairs(self.Tabs) do
+        if tab.Title then tab.Title.Visible = not mobile end
+        if tab.Subtitle then tab.Subtitle.Visible = not mobile end
+        if tab.IconHolder then
+            tab.IconHolder.Position = UDim2.fromOffset(mobile and 20 or 12, 7)
+        end
+        if tab.ColumnLayout then
+            tab.ColumnLayout.FillDirection = mobile and Enum.FillDirection.Vertical or Enum.FillDirection.Horizontal
+            tab.ColumnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+            tab.ColumnLayout.Padding = UDim.new(0, mobile and 8 or 10)
+        end
+        if tab.LeftBody then tab.LeftBody.Size = mobile and UDim2.new(1, 0, 0, 0) or UDim2.new(0.5, -5, 0, 0) end
+        if tab.RightBody then tab.RightBody.Size = mobile and UDim2.new(1, 0, 0, 0) or UDim2.new(0.5, -5, 0, 0) end
+    end
 end
 
 function AxelUI:SetFont(font)
@@ -475,7 +549,7 @@ function AxelUI:AddTab(data)
         }, button)
         corner(badge, 8)
     end
-    tab.Button, tab.Title, tab.Icon, tab.Indicator, tab.Badge = button, title, tabIcon, indicator, badge
+    tab.Button, tab.Title, tab.Subtitle, tab.IconHolder, tab.Icon, tab.Indicator, tab.Badge = button, title, subtitle, iconHolder, tabIcon, indicator, badge
 
     local page = new("Frame", {
         BackgroundTransparency = 1,
@@ -507,19 +581,28 @@ function AxelUI:AddTab(data)
     local rightColumn = new("Frame", {
         BackgroundTransparency = 1,
         AutomaticSize = Enum.AutomaticSize.Y,
-        Position = UDim2.new(0.5, 5, 0, 0),
         Size = UDim2.new(0.5, -5, 0, 0),
     }, columns)
+    local columnLayout = new("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        Padding = UDim.new(0, 10),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, columns)
+    leftColumn.LayoutOrder = 1
+    rightColumn.LayoutOrder = 2
     local leftLayout = new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, leftColumn)
     local rightLayout = new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, rightColumn)
     tab.Page, tab.Body, tab.Layout = page, leftColumn, leftLayout
     tab.Columns, tab.LeftBody, tab.RightBody = columns, leftColumn, rightColumn
+    tab.ColumnLayout = columnLayout
     tab._nextSide = "Left"
     table.insert(self.Tabs, tab)
 
     connect(self, button.MouseButton1Click, function() self:SelectTab(tab) end)
     pressAnimation(self, button)
     if #self.Tabs == 1 then self:SelectTab(tab) end
+    if self._applyResponsive then self:_applyResponsive() end
     return tab
 end
 
@@ -878,7 +961,7 @@ end
 
 function AxelUI:Toggle()
     if not self.Window then return end
-    self.Window.Visible = not self.Window.Visible
+    self:SetOpen(not self._open)
 end
 
 function AxelUI.new(options)
@@ -888,19 +971,23 @@ function AxelUI.new(options)
     local self = setmetatable({
         _connections = {},
         _searchRows = {},
+        _notifications = {},
         _destroyed = false,
+        _open = true,
         _globalKey = globalKey,
         Theme = copyTheme(options.Theme),
         Tabs = {},
         ActiveTab = nil,
         _font = options.Font,
+        ToggleKeybind = options.ToggleKeybind or Enum.KeyCode.RightControl,
+        DesktopSize = options.Size or UDim2.fromOffset(820, 560),
     }, AxelUI)
     ACTIVE_FONT = options.Font
     self.TabMethods = AxelUI.TabMethods
     self.Gui = new("ScreenGui", { Name = globalKey, IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global }, resolveParent())
     _G[globalKey] = self
 
-    self.Window = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = options.Size or UDim2.fromOffset(820, 560), ClipsDescendants = true }, self.Gui)
+    self.Window = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = self.DesktopSize, ClipsDescendants = true }, self.Gui)
     corner(self.Window, 9)
     self.GlowStroke = stroke(self.Window, self.Theme.Accent, 0.58, 1.25)
     new("UIGradient", {
@@ -919,12 +1006,15 @@ function AxelUI.new(options)
     self.Scale = new("UIScale", { Scale = 0.9 }, self.Window)
 
     local header = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 50) }, self.Window)
+    self.Header = header
     local logoHolder = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.fromOffset(32, 32), Position = UDim2.fromOffset(10, 9) }, header)
     corner(logoHolder, 8); icon(logoHolder, options.Logo or "dashboard", 20, self.Theme.Accent2).Position = UDim2.fromOffset(6, 6)
     local brand = textLabel(header, options.Name or "Axel UI", 14, self.Theme.Text, true); brand.Position = UDim2.fromOffset(52, 5); brand.Size = UDim2.fromOffset(150, 20)
     local subtitle = textLabel(header, options.Subtitle or "Clean, animated interface", 10, self.Theme.SubText, false); subtitle.Position = UDim2.fromOffset(52, 25); subtitle.Size = UDim2.fromOffset(180, 16)
+    self.Brand, self.HeaderSubtitle = brand, subtitle
     local search = new("TextBox", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, ClearTextOnFocus = false, PlaceholderText = "Search", PlaceholderColor3 = self.Theme.Muted, Text = "", TextColor3 = self.Theme.Text, TextSize = 12, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(280, 30), Position = UDim2.new(0, 245, 0, 10) }, header)
-    corner(search, 5); stroke(search, self.Theme.Border, 0.25, 1); pad(search, 10, 30, 0, 0); icon(header, "search", 15, self.Theme.Muted).Position = UDim2.new(0, 500, 0, 17)
+    corner(search, 5); stroke(search, self.Theme.Border, 0.25, 1); pad(search, 10, 30, 0, 0)
+    self.SearchIcon = icon(header, "search", 15, self.Theme.Muted); self.SearchIcon.Position = UDim2.new(0, 500, 0, 17)
     self.Search = search
     self.StatusDot = new("Frame", { BackgroundColor3 = self.Theme.Success, BorderSizePixel = 0, Size = UDim2.fromOffset(7, 7), Position = UDim2.new(1, -140, 0, 21) }, header); corner(self.StatusDot, 4)
     self.StatusText = textLabel(header, "Ready", 10, self.Theme.Success, true); self.StatusText.Position = UDim2.new(1, -126, 0, 14); self.StatusText.Size = UDim2.fromOffset(76, 20); self.StatusText.TextXAlignment = Enum.TextXAlignment.Left
@@ -932,22 +1022,57 @@ function AxelUI.new(options)
     local unloadButton = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Text = "", Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -38, 0, 11) }, header)
     corner(unloadButton, 6)
     local unloadIcon = icon(unloadButton, "power", 15, self.Theme.SubText); unloadIcon.Position = UDim2.fromOffset(6, 6)
+    self.UnloadButton = unloadButton
     pressAnimation(self, unloadButton)
     connect(self, unloadButton.MouseButton1Click, function() self:Unload() end)
 
     local sidebar = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 50), Size = UDim2.new(0, 170, 1, -50) }, self.Window)
+    self.Sidebar = sidebar
     local navTitle = textLabel(sidebar, "NAVIGATION", 9, self.Theme.Muted, true); navTitle.Position = UDim2.fromOffset(14, 13); navTitle.Size = UDim2.new(1, -28, 0, 16)
+    self.NavTitle = navTitle
     self.TabList = new("ScrollingFrame", { Active = true, AutomaticCanvasSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), Position = UDim2.fromOffset(8, 36), ScrollBarImageColor3 = self.Theme.Accent, ScrollBarThickness = 2, Size = UDim2.new(1, -16, 1, -85) }, sidebar)
     new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, self.TabList)
     local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -36); footer.Size = UDim2.new(1, -28, 0, 20)
+    self.Footer = footer
 
     self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 50), Size = UDim2.new(1, -170, 1, -50) }, self.Window)
     local tabHeader = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 42) }, self.PageHolder)
+    self.TabHeader = tabHeader
     self.TabTitle = textLabel(tabHeader, "Dashboard", 15, self.Theme.Text, true); self.TabTitle.Position = UDim2.fromOffset(16, 3); self.TabTitle.Size = UDim2.new(1, -28, 0, 19)
     self.TabSubtitle = textLabel(tabHeader, "", 10, self.Theme.SubText, false); self.TabSubtitle.Position = UDim2.fromOffset(16, 21); self.TabSubtitle.Size = UDim2.new(1, -28, 0, 15)
     local separator = new("Frame", { BackgroundColor3 = self.Theme.Border, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1) }, tabHeader)
 
+    self.NotificationHolder = new("Frame", {
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, -18, 0, 62),
+        Size = UDim2.fromOffset(300, 0),
+        ZIndex = 300,
+    }, self.Gui)
+    new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right }, self.NotificationHolder)
+
+    self.TouchButton = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = self.Theme.Element,
+        BorderSizePixel = 0,
+        Text = "",
+        Size = UDim2.fromOffset(44, 44),
+        Position = UDim2.new(1, -62, 1, -62),
+        Visible = false,
+        ZIndex = 250,
+    }, self.Gui)
+    corner(self.TouchButton, 11)
+    stroke(self.TouchButton, self.Theme.Accent, 0.18, 1)
+    local touchIcon = icon(self.TouchButton, "dashboard", 18, self.Theme.Accent2); touchIcon.Position = UDim2.fromOffset(13, 13); touchIcon.ZIndex = 251
+    pressAnimation(self, self.TouchButton)
+    connect(self, self.TouchButton.MouseButton1Click, function() self:Toggle() end)
+
     connect(self, search:GetPropertyChangedSignal("Text"), function() self:_refreshSearch(search.Text) end)
+    connect(self, UserInputService.InputBegan, function(input, processed)
+        if processed or self._destroyed then return end
+        if keyMatches(input, self.ToggleKeybind) then self:Toggle() end
+    end)
     self._fpsFrames = 0
     self._fpsLastSample = os.clock()
     connect(self, RunService.RenderStepped, function()
@@ -976,6 +1101,12 @@ function AxelUI.new(options)
             self.Window.Position = UDim2.new(self._windowStart.X.Scale, self._windowStart.X.Offset + delta.X, self._windowStart.Y.Scale, self._windowStart.Y.Offset + delta.Y)
         end
     end)
+    pcall(function()
+        if workspace.CurrentCamera then
+            connect(self, workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"), function() self:_applyResponsive() end)
+        end
+    end)
+    self:_applyResponsive()
 
     local overlay = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 100 }, self.Window)
     local overlayIcon = icon(overlay, options.Logo or "dashboard", 46, self.Theme.Accent2); overlayIcon.AnchorPoint = Vector2.new(0.5, 0.5); overlayIcon.Position = UDim2.new(0.5, 0, 0.42, 0); overlayIcon.ZIndex = 101
