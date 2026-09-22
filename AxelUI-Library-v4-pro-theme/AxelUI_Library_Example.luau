@@ -12,7 +12,7 @@ local function hasMethods(owner, names)
 end
 
 local function supportsShowcase(library)
-    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.4 then return false end
+    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.5 then return false end
     return hasMethods(library, {
         "CreateWindow", "AddTab", "Notify", "SetStatus", "SetGlass", "SetTheme",
         "SetFont", "SetBackground", "SaveConfig", "LoadConfig", "SetOpen", "Toggle",
@@ -57,7 +57,7 @@ local function loadAxelUI()
         local compiledOk, library = pcall(function() return compiler(source)() end)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.4 launcher, glass-surface or complete showcase API. Upload the bundled v6.4 library to that path.")
+            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.5 status launcher, animated gold controls or complete showcase API. Upload the bundled v6.5 library to that path.")
         else
             warn("[AxelUI] GitHub source could not be compiled: " .. tostring(library))
         end
@@ -84,7 +84,7 @@ end
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
 if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v6.4 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
+    warn("[AxelUI] No compatible library found. Use the bundled v6.5 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
     return
 end
 
@@ -96,13 +96,13 @@ local Window = AxelUI.CreateWindow({
     ToggleKeybind = "RightControl",
     -- Start on the centered Axel star launcher; clicking/tapping opens the UI.
     StartMinimized = true,
-    RestoreButtonPosition = UDim2.new(0.5, -22, 0.5, -22),
+    RestoreButtonPosition = UDim2.new(0.5, -94, 0.5, -24),
     -- Set this when your executor stores AxelLogo.png in a subfolder.
     -- AssetFolder = "AxelUI",
     Theme = {
-        Accent = Color3.fromRGB(224, 164, 69),
-        Accent2 = Color3.fromRGB(247, 210, 139),
-        Accent3 = Color3.fromRGB(139, 91, 43),
+        Accent = Color3.fromRGB(255, 193, 7),
+        Accent2 = Color3.fromRGB(255, 224, 115),
+        Accent3 = Color3.fromRGB(184, 126, 0),
         Background = Color3.fromRGB(10, 10, 12),
         Surface = Color3.fromRGB(17, 17, 19),
         Surface2 = Color3.fromRGB(24, 24, 27),
@@ -122,7 +122,7 @@ local Window = AxelUI.CreateWindow({
     Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 6.4  •  Preparing your workspace",
+    LoadingSubtitle = "AxelUI 6.5  •  Preparing your workspace",
 })
 
 -- Home follows the reference composition: hero, pill tabs, then two columns of cards.
