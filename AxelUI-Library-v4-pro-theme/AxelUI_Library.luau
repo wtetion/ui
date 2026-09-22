@@ -76,6 +76,24 @@ local ICONS = {
     upload = "7743875428",
     refresh = "7734051052",
     chevron = "7733717755",
+    -- Compatibility names used by Oxide-style scripts.
+    crown = "8997385940",
+    bolt = "7734042423",
+    gear = "7734053495",
+    globe = "7734053426",
+    discord = "7733992732",
+    users = "7743876054",
+    cart = "7733770755",
+    file = "7733764083",
+    monitor = "7733774602",
+    palette = "7733674319",
+    bell = "7733964719",
+    activity = "7733674319",
+    cpu = "7733674319",
+    gamepad = "7734052758",
+    list = "7733970318",
+    plus = "7733715400",
+    minus = "7743878496",
 }
 
 local function copyTheme(theme)
@@ -115,6 +133,7 @@ local function imageSource(value)
     if source:find("://", 1, true) then return source end
     local ok, custom = pcall(function()
         if type(getcustomasset) == "function" then return getcustomasset(source) end
+        if type(getsynasset) == "function" then return getsynasset(source) end
     end)
     return ok and custom or source
 end
@@ -193,17 +212,28 @@ local function textLabel(parent, text, size, color, bold)
 end
 
 local function icon(parent, value, size, tint)
+    local config = type(value) == "table" and value or nil
+    local source = config and (config.Image or config.Asset or config.Id or config.Source) or value
     local image = imageSource(value)
+    local image = imageSource(source)
     if image then
         return new("ImageLabel", {
+        local imageLabel = new("ImageLabel", {
             BackgroundTransparency = 1,
             Image = image,
             ImageColor3 = tint or Color3.new(1, 1, 1),
             Size = UDim2.fromOffset(size or 18, size or 18),
             ScaleType = Enum.ScaleType.Fit,
+            ImageColor3 = (config and config.Color) or tint or Color3.new(1, 1, 1),
+            Size = UDim2.fromOffset((config and config.Size) or size or 18, (config and config.Size) or size or 18),
+            ScaleType = (config and config.ScaleType) or Enum.ScaleType.Fit,
         }, parent)
+        if config and config.ImageRectOffset then imageLabel.ImageRectOffset = config.ImageRectOffset end
+        if config and config.ImageRectSize then imageLabel.ImageRectSize = config.ImageRectSize end
+        return imageLabel
     end
     return textLabel(parent, tostring(value or "•"), size or 18, tint or Color3.new(1, 1, 1), true)
+    return textLabel(parent, tostring(source or "icon"), size or 18, tint or Color3.new(1, 1, 1), true)
 end
 
 local function resolveParent()
@@ -286,12 +316,15 @@ end
 
 function AxelUI:_makeRow(parent, data, height)
     data = data or {}
+    local rowHeight = height or 38
+    if data.Description and rowHeight < 50 then rowHeight = 50 end
     local row = new("TextButton", {
         AutoButtonColor = false,
         BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2,
         BorderSizePixel = 0,
         Text = "",
         Size = UDim2.new(1, 0, 0, height or 38),
+        Size = UDim2.new(1, 0, 0, rowHeight),
         LayoutOrder = data.LayoutOrder or 0,
     }, parent)
     corner(row, 5)
@@ -936,6 +969,11 @@ function AxelUI.TabMethods:AddSubTab(data)
     connect(self.Window, button.MouseButton1Click, function() self:SelectSubTab(subtab) end)
     pressAnimation(self.Window, button)
     if #self.SubTabs == 1 then self:SelectSubTab(subtab) end
+    if #self.SubTabs == 1 then
+        self:SelectSubTab(subtab)
+    else
+        self:SelectSubTab(self.ActiveSubTab or self.SubTabs[1])
+    end
     if self.Window._applyResponsive then self.Window:_applyResponsive() end
     return subtab
 end
@@ -1018,7 +1056,10 @@ end
 
 function AxelUI.SectionMethods:AddDescription(text)
     local label = textLabel(self.Body, text, 11, self.Window.Theme.SubText, false)
+    local description = tostring(text or "")
+    local lines = select(2, description:gsub("\n", "\n")) + 1
     label.Size = UDim2.new(1, 0, 0, 26)
+    label.Size = UDim2.new(1, 0, 0, math.max(26, lines * 16))
     label.TextWrapped = true
     self.Window:_registerSearch(label, text)
     return label
@@ -1040,7 +1081,11 @@ function AxelUI.SectionMethods:AddParagraph(data)
     title.Size = UDim2.new(1, 0, 0, 18)
     local content = textLabel(wrapper, data.Content or "", 11, self.Window.Theme.SubText, false)
     content.Position = UDim2.fromOffset(0, 19)
+    local contentText = tostring(data.Content or "")
+    local lineCount = select(2, contentText:gsub("\n", "\n")) + 1
+    local contentHeight = tonumber(data.Height) or math.max(36, lineCount * 16, (#contentText > 90 and 52 or 0))
     content.Size = UDim2.new(1, 0, 0, data.Height or 36)
+    content.Size = UDim2.new(1, 0, 0, contentHeight)
     content.TextWrapped = true
     content.TextYAlignment = Enum.TextYAlignment.Top
     self.Window:_registerSearch(wrapper, tostring(data.Title or "") .. " " .. tostring(data.Content or ""))
@@ -1051,6 +1096,69 @@ function AxelUI.SectionMethods:AddParagraph(data)
     table.insert(self.Controls, handle)
     return handle
 end
+
+function AxelUI.SectionMethods:AddBanner(data)
+    data = data or {}
+    local height = tonumber(data.Height) or 112
+    local holder = new("Frame", {
+        BackgroundColor3 = self.Window.Theme.Element,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, height),
+        ClipsDescendants = true,
+    }, self.Body)
+    corner(holder, 8); stroke(holder, self.Window.Theme.Border, 0.18, 1)
+    local picture = new("ImageLabel", {
+        BackgroundTransparency = 1,
+        Image = imageSource(data.Image or data.Source or data.Asset),
+        ImageColor3 = Color3.new(1, 1, 1),
+        ImageTransparency = tonumber(data.ImageTransparency) or 0.18,
+        ScaleType = data.ScaleType or Enum.ScaleType.Crop,
+        Size = UDim2.fromScale(1, 1),
+        ZIndex = 1,
+    }, holder)
+    local shade = new("Frame", {
+        BackgroundColor3 = self.Window.Theme.Background,
+        BackgroundTransparency = 0.22,
+        BorderSizePixel = 0,
+        Size = UDim2.fromScale(1, 1),
+        ZIndex = 2,
+    }, holder)
+    new("UIGradient", {
+        Color = ColorSequence.new(self.Window.Theme.Background, self.Window.Theme.Element),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.05),
+            NumberSequenceKeypoint.new(1, 0.78),
+        }),
+        Rotation = 0,
+    }, shade)
+    local title = textLabel(holder, data.Title or data.Name or "Welcome", 14, self.Window.Theme.Text, true)
+    title.Position = UDim2.fromOffset(14, 14); title.Size = UDim2.new(1, -28, 0, 22); title.ZIndex = 3
+    local content = textLabel(holder, data.Content or data.Description or "", 10, self.Window.Theme.SubText, false)
+    content.Position = UDim2.fromOffset(14, 39); content.Size = UDim2.new(1, -170, 0, 34); content.TextWrapped = true; content.ZIndex = 3
+    local action
+    if data.Button or data.ActionText then
+        action = new("TextButton", {
+            AutoButtonColor = false,
+            BackgroundColor3 = self.Window.Theme.Accent,
+            BorderSizePixel = 0,
+            Text = tostring(data.Button or data.ActionText),
+            TextColor3 = self.Window.Theme.Background,
+            TextSize = 10,
+            FontFace = fontFace(nil, true),
+            Size = UDim2.fromOffset(112, 28),
+            Position = UDim2.new(1, -126, 0.5, -14),
+            ZIndex = 3,
+        }, holder)
+        corner(action, 7); pressAnimation(self.Window, action)
+        connect(self.Window, action.MouseButton1Click, function()
+            if type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback) end) end
+        end)
+    end
+    self.Window:_registerSearch(holder, tostring(data.Title or "") .. " " .. tostring(data.Content or ""))
+    return { Instance = holder, Image = picture, Title = title, Content = content, Button = action }
+end
+
+AxelUI.SectionMethods.AddHero = AxelUI.SectionMethods.AddBanner
 
 function AxelUI.SectionMethods:AddImage(data)
     data = type(data) == "table" and data or { Image = data }
@@ -1400,6 +1508,7 @@ function AxelUI.SectionMethods:AddColorPicker(data)
             BackgroundColor3 = self.Window.Theme.Surface,
             BorderSizePixel = 0,
             Size = UDim2.fromOffset(154, 76),
+            Size = UDim2.fromOffset(170, 82),
             ZIndex = 70,
         }, self.Window.Gui)
         corner(popup, 7); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 8, 8, 8, 8)
@@ -1709,10 +1818,22 @@ function AxelUI.new(options)
     return self
 end
 
+function AxelUI:RegisterIcon(name, source)
+    if name and source then ICONS[string.lower(tostring(name))] = tostring(source) end
+    return self
+end
+
+function AxelUI:RegisterIcons(map)
+    for name, source in pairs(map or {}) do self:RegisterIcon(name, source) end
+    return self
+end
+
 AxelUI.Version = 3.1
 
 function AxelUI:CreateWindow(options)
     return self.new(options)
+function AxelUI.CreateWindow(first, second)
+    return AxelUI.new(second or first)
 end
 
 return AxelUI
