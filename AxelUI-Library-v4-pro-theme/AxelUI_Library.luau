@@ -757,6 +757,7 @@ function AxelUI:_makeRow(parent, data, height)
     local row = new("TextButton", {
         AutoButtonColor = false,
         BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         Text = "",
         Size = UDim2.new(1, 0, 0, rowHeight),
@@ -766,7 +767,7 @@ function AxelUI:_makeRow(parent, data, height)
     local rowStroke = stroke(row, data.Primary and self.Theme.Accent2 or self.Theme.Border, 0.4, 1)
     new("UIGradient", {
         Color = ColorSequence.new(data.Primary and self.Theme.Accent or self.Theme.Surface2, data.Primary and self.Theme.Accent2 or self.Theme.Element),
-        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, data.Primary and 0.02 or 0.04), NumberSequenceKeypoint.new(1, 0.22) }),
+        Transparency = NumberSequence.new(0),
         Rotation = 0,
     }, row)
     local hoverGlass = new("Frame", {
@@ -1002,7 +1003,8 @@ function AxelUI:SetToggleKeybind(key)
     self.ToggleKeybind = key or Enum.KeyCode.RightControl
 end
 
--- Glass is applied to the outer shell only; cards and controls stay opaque.
+-- Glass is limited to the shell and the empty page backdrop. Header, sidebar,
+-- cards and controls remain solid so their text and states stay readable.
 function AxelUI:SetGlass(value, transparency)
     if type(value) == "table" then
         if value.Enabled ~= nil then self.GlassEnabled = value.Enabled == true end
@@ -1015,6 +1017,12 @@ function AxelUI:SetGlass(value, transparency)
     end
     if self.Window then
         self.Window.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
+    end
+    if self.PageHolder then
+        self.PageHolder.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
+        for _, cap in ipairs(self.PageCornerCaps or {}) do
+            cap.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
+        end
     end
     return self
 end
@@ -1478,6 +1486,7 @@ end
 local function makeSubTabCard(window, parent, title)
     local card = new("Frame", {
         BackgroundColor3 = window.Theme.Surface,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ClipsDescendants = true,
         Size = UDim2.new(1, -5, 0, 0),
@@ -1486,7 +1495,7 @@ local function makeSubTabCard(window, parent, title)
     stroke(card, window.Theme.Border, 0.28, 1)
     new("UIGradient", {
         Color = ColorSequence.new(window.Theme.Surface, window.Theme.Background),
-        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.16) }),
+        Transparency = NumberSequence.new(0),
         Rotation = 90,
     }, card)
     local cardHeader = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32) }, card)
@@ -1871,6 +1880,7 @@ function AxelUI.TabMethods:AddSection(data)
     end
     local card = new("Frame", {
         BackgroundColor3 = self.Window.Theme.Surface,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ClipsDescendants = true,
         Size = UDim2.new(1, -5, 0, 0),
@@ -1880,7 +1890,7 @@ function AxelUI.TabMethods:AddSection(data)
     stroke(card, self.Window.Theme.Border, 0.28, 1)
     new("UIGradient", {
         Color = ColorSequence.new(self.Window.Theme.Surface, self.Window.Theme.Background),
-        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.16) }),
+        Transparency = NumberSequence.new(0),
         Rotation = 90,
     }, card)
     local headerHeight = data.Description ~= "" and 48 or 35
@@ -2918,6 +2928,7 @@ function AxelUI.new(options)
         _notifications = {},
         _destroyed = false,
         _open = true,
+        StartMinimized = options.StartMinimized == true,
         _globalKey = globalKey,
         Theme = normalizeTheme(options.Theme, AxelUI._pendingTheme),
         Tabs = {},
@@ -3017,7 +3028,7 @@ function AxelUI.new(options)
         self:SetBackground(options.Background or options.BackgroundImage, options.BackgroundTransparency, options.BackgroundScaleType)
     end
 
-    local header = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 0), Size = UDim2.new(1, -170, 0, 58), ZIndex = 5 }, self.Window)
+    local header = new("Frame", { BackgroundColor3 = self.Theme.Surface, BackgroundTransparency = 0, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 0), Size = UDim2.new(1, -170, 0, 58), ZIndex = 5 }, self.Window)
     self.Header = header
     corner(header, 18)
     -- Square the header's interior corners without covering the outer top-right radius.
@@ -3026,7 +3037,7 @@ function AxelUI.new(options)
     new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -12, 1, -12), Size = UDim2.fromOffset(12, 12), ZIndex = 6 }, header)
     new("UIGradient", {
         Color = ColorSequence.new(self.Theme.Surface, self.Theme.Background),
-        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.2) }),
+        Transparency = NumberSequence.new(0),
         Rotation = 0,
     }, header)
     local dragHandle = new("TextButton", {
@@ -3136,7 +3147,7 @@ function AxelUI.new(options)
         end
     end)
 
-    local sidebar = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.new(0, 170, 1, 0), ZIndex = 6 }, self.Window)
+    local sidebar = new("Frame", { BackgroundColor3 = self.Theme.Surface, BackgroundTransparency = 0, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.new(0, 170, 1, 0), ZIndex = 6 }, self.Window)
     self.Sidebar = sidebar
     corner(sidebar, 18)
     self.SidebarRightTopCap = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -18, 0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 7 }, sidebar)
@@ -3150,7 +3161,7 @@ function AxelUI.new(options)
     self.NavTitle = navTitle
     self.TabList = new("ScrollingFrame", { Active = true, AutomaticCanvasSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), Position = UDim2.fromOffset(8, 108), ScrollBarImageColor3 = self.Theme.Accent, ScrollBarThickness = 2, Size = UDim2.new(1, -16, 1, -188) }, sidebar)
     new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, self.TabList)
-    local profile = new("Frame", { BackgroundColor3 = self.Theme.Element, BackgroundTransparency = 0.08, BorderSizePixel = 0, Position = UDim2.new(0, 12, 1, -112), Size = UDim2.new(1, -24, 0, 52) }, sidebar)
+    local profile = new("Frame", { BackgroundColor3 = self.Theme.Element, BackgroundTransparency = 0, BorderSizePixel = 0, Position = UDim2.new(0, 12, 1, -112), Size = UDim2.new(1, -24, 0, 52) }, sidebar)
     corner(profile, 11); stroke(profile, self.Theme.Border, 0.28, 1)
     local avatar = new("ImageLabel", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Size = UDim2.fromOffset(30, 30), Position = UDim2.fromOffset(8, 9), Image = "", ScaleType = Enum.ScaleType.Crop }, profile)
     corner(avatar, 15)
@@ -3171,12 +3182,12 @@ function AxelUI.new(options)
     self.ProfileCard, self.ProfileAvatar, self.ProfileName = profile, avatar, profileName
     self.Footer = footer
 
-    self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 58), Size = UDim2.new(1, -170, 1, -58), ZIndex = 1, ClipsDescendants = true }, self.Window)
+    self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 58), Size = UDim2.new(1, -170, 1, -58), ZIndex = 1, ClipsDescendants = true }, self.Window)
     corner(self.PageHolder, 18)
     self.PageCornerCaps = {
-        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
-        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.new(1, -18, 0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
-        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -18), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.new(1, -18, 0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -18), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
     }
     local tabHeader = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 46) }, self.PageHolder)
     corner(tabHeader, 12)
@@ -3195,6 +3206,11 @@ function AxelUI.new(options)
         Size = UDim2.fromOffset(300, 0),
         ZIndex = 300,
     }, self.Gui)
+    if typeof(options.RestoreButtonPosition) == "UDim2" then
+        self.TouchButton.Position = options.RestoreButtonPosition
+    elseif self.StartMinimized then
+        self.TouchButton.Position = UDim2.new(0.5, -22, 0.5, -22)
+    end
     new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right }, self.NotificationHolder)
 
     self.TouchButton = new("TextButton", {
@@ -3329,6 +3345,17 @@ function AxelUI.new(options)
         task.delay(0.3, function() if overlay.Parent then overlay:Destroy() end end)
     end)
 
+    if self.StartMinimized then
+        self._open = false
+        self.Window.Visible = false
+        self.RestoreButton.Visible = true
+        self.RestoreButton.BackgroundTransparency = 0.08
+        self.RestoreScale.Scale = 0.72
+        local restoreStroke = self.RestoreButton:FindFirstChildOfClass("UIStroke")
+        if restoreStroke then restoreStroke.Transparency = 0.04 end
+        tween(self.RestoreScale, { Scale = 1 }, 0.34, Enum.EasingStyle.Back)
+    end
+
     function self:CreateTab(data) return self:AddTab(data) end
     function self:WindowToggle() return self:Toggle() end
     self._globalKey = globalKey
@@ -3345,7 +3372,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.3
+AxelUI.Version = 6.4
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
