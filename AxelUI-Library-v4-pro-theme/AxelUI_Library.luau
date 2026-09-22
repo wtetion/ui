@@ -821,6 +821,7 @@ function AxelUI:_applyResponsive()
         self.Brand.Visible = false
         self.HeaderSubtitle.Visible = false
         self.FpsText.Visible = false
+        self.StatusSeparator.Visible = false
         self.StatusDot.Visible = false
         self.StatusText.Visible = false
         self.Search.Position = UDim2.fromOffset(8, 9)
@@ -847,6 +848,7 @@ function AxelUI:_applyResponsive()
         self.Brand.Visible = true
         self.HeaderSubtitle.Visible = true
         self.FpsText.Visible = true
+        self.StatusSeparator.Visible = true
         self.StatusDot.Visible = true
         self.StatusText.Visible = true
         self.Search.Position = UDim2.fromOffset(20, 14)
@@ -2175,6 +2177,74 @@ function AxelUI:Destroy()
     return self:Unload()
 end
 
+-- Ask before removing the whole interface. Unload() remains the direct API for
+-- scripts that intentionally tear down immediately; visible close controls use
+-- this guarded version so an accidental click cannot destroy the UI.
+function AxelUI:ConfirmUnload()
+    if self._destroyed or not self.Gui then return false end
+    if self._confirmOverlay and self._confirmOverlay.Parent then return true end
+    local overlay = new("Frame", {
+        BackgroundColor3 = self.Theme.Background,
+        BackgroundTransparency = 0.28,
+        BorderSizePixel = 0,
+        Size = UDim2.fromScale(1, 1),
+        ZIndex = 400,
+    }, self.Gui)
+    local card = new("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = self.Theme.Surface,
+        BorderSizePixel = 0,
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(300, 142),
+        ZIndex = 401,
+    }, overlay)
+    corner(card, 12)
+    stroke(card, self.Theme.Border, 0.12, 1)
+    local title = textLabel(card, "Unload Axel Hub?", 14, self.Theme.Text, true)
+    title.Position = UDim2.fromOffset(18, 16); title.Size = UDim2.new(1, -36, 0, 22); title.ZIndex = 402
+    local body = textLabel(card, "The UI and its listeners will be removed.", 10, self.Theme.SubText, false)
+    body.Position = UDim2.fromOffset(18, 43); body.Size = UDim2.new(1, -36, 0, 18); body.ZIndex = 402
+    local cancel = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = self.Theme.Element,
+        BorderSizePixel = 0,
+        Text = "Cancel",
+        TextColor3 = self.Theme.Text,
+        TextSize = 10,
+        FontFace = fontFace(nil, true),
+        Size = UDim2.fromOffset(112, 30),
+        Position = UDim2.fromOffset(18, 94),
+        ZIndex = 402,
+    }, card)
+    corner(cancel, 8); stroke(cancel, self.Theme.Border, 0.2, 1); pressAnimation(self, cancel)
+    local confirm = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = self.Theme.Accent,
+        BorderSizePixel = 0,
+        Text = "Unload",
+        TextColor3 = self.Theme.Background,
+        TextSize = 10,
+        FontFace = fontFace(nil, true),
+        Size = UDim2.fromOffset(112, 30),
+        Position = UDim2.new(1, -130, 0, 94),
+        ZIndex = 402,
+    }, card)
+    corner(confirm, 8); pressAnimation(self, confirm)
+    local function closePrompt()
+        if overlay.Parent then overlay:Destroy() end
+        self._confirmOverlay = nil
+    end
+    self._confirmOverlay = overlay
+    connect(self, cancel.MouseButton1Click, closePrompt)
+    connect(self, confirm.MouseButton1Click, function()
+        closePrompt()
+        self:Unload()
+    end)
+    return true
+end
+
+AxelUI.RequestUnload = AxelUI.ConfirmUnload
+
 function AxelUI:Toggle()
     if not self.Window then return end
     self:SetOpen(not self._open)
@@ -2199,6 +2269,7 @@ function AxelUI.new(options)
         DesktopSize = options.Size or UDim2.fromOffset(926, 616),
         AssetFolder = options.AssetFolder or options.AssetRoot or "",
         ConfigFolder = options.ConfigFolder or "AxelUIConfigs",
+        Draggable = options.Draggable == true,
         _flags = {},
     }, AxelUI)
     ACTIVE_FONT = options.Font
@@ -2245,9 +2316,10 @@ function AxelUI.new(options)
     corner(search, 8); stroke(search, self.Theme.Border, 0.25, 1); pad(search, 10, 34, 0, 0)
     self.SearchIcon = icon(header, "search", 15, self.Theme.Muted); self.SearchIcon.Position = UDim2.fromOffset(292, 21)
     self.Search = search
-    self.StatusDot = new("Frame", { BackgroundColor3 = self.Theme.Success, BorderSizePixel = 0, Size = UDim2.fromOffset(7, 7), Position = UDim2.new(1, -140, 0, 21) }, header); corner(self.StatusDot, 4)
-    self.StatusText = textLabel(header, "Ready", 10, self.Theme.Success, true); self.StatusText.Position = UDim2.new(1, -126, 0, 14); self.StatusText.Size = UDim2.fromOffset(76, 20); self.StatusText.TextXAlignment = Enum.TextXAlignment.Left
-    self.FpsText = textLabel(header, "FPS --", 10, self.Theme.SubText, true); self.FpsText.Position = UDim2.new(1, -232, 0, 14); self.FpsText.Size = UDim2.fromOffset(82, 20); self.FpsText.TextXAlignment = Enum.TextXAlignment.Right
+    self.FpsText = textLabel(header, "FPS --", 10, self.Theme.SubText, true); self.FpsText.Position = UDim2.new(1, -276, 0, 14); self.FpsText.Size = UDim2.fromOffset(62, 20); self.FpsText.TextXAlignment = Enum.TextXAlignment.Right
+    self.StatusSeparator = textLabel(header, "|", 10, self.Theme.Muted, false); self.StatusSeparator.Position = UDim2.new(1, -211, 0, 14); self.StatusSeparator.Size = UDim2.fromOffset(8, 20); self.StatusSeparator.TextXAlignment = Enum.TextXAlignment.Center
+    self.StatusDot = new("Frame", { BackgroundColor3 = self.Theme.Success, BorderSizePixel = 0, Size = UDim2.fromOffset(7, 7), Position = UDim2.new(1, -190, 0, 21) }, header); corner(self.StatusDot, 4)
+    self.StatusText = textLabel(header, "Online", 10, self.Theme.Success, true); self.StatusText.Position = UDim2.new(1, -176, 0, 14); self.StatusText.Size = UDim2.fromOffset(60, 20); self.StatusText.TextXAlignment = Enum.TextXAlignment.Left
     local function headerControl(text, offset, callback)
         local button = new("TextButton", {
             AutoButtonColor = false,
@@ -2268,7 +2340,7 @@ function AxelUI.new(options)
     end
     local minimizeButton = headerControl("—", -102, function() self:SetOpen(false) end)
     local maximizeButton = headerControl("□", -70, function() self:SetMaximized(not self._maximized) end)
-    local unloadButton = headerControl("×", -38, function() self:Unload() end)
+    local unloadButton = headerControl("×", -38, function() self:ConfirmUnload() end)
     self.MinimizeButton, self.MaximizeButton, self.UnloadButton = minimizeButton, maximizeButton, unloadButton
 
     local sidebar = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.new(0, 170, 1, 0), ZIndex = 6 }, self.Window)
@@ -2292,7 +2364,7 @@ function AxelUI.new(options)
     end)
     local profileName = textLabel(profile, Players.LocalPlayer and Players.LocalPlayer.DisplayName or "Axel User", 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 7); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
     local profileState = textLabel(profile, "Ready to play", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 25); profileState.Size = UDim2.new(1, -54, 0, 14)
-    local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -42); footer.Size = UDim2.new(1, -28, 0, 20)
+    local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -58); footer.Size = UDim2.new(1, -28, 0, 42); footer.TextWrapped = true; footer.TextYAlignment = Enum.TextYAlignment.Top
     self.ProfileCard, self.ProfileAvatar, self.ProfileName = profile, avatar, profileName
     self.Footer = footer
 
@@ -2348,20 +2420,24 @@ function AxelUI.new(options)
             if self.FpsText then self.FpsText.Text = "FPS " .. tostring(fps) end
         end
     end)
-    connect(self, self.Window.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            self._dragging = true; self._dragStart = input.Position; self._windowStart = self.Window.Position
-        end
-    end)
-    connect(self, self.Window.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then self._dragging = false end
-    end)
-    connect(self, UserInputService.InputChanged, function(input)
-        if self._dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - self._dragStart
-            self.Window.Position = UDim2.new(self._windowStart.X.Scale, self._windowStart.X.Offset + delta.X, self._windowStart.Y.Scale, self._windowStart.Y.Offset + delta.Y)
-        end
-    end)
+    -- Keep the reference layout fixed by default. Dragging is opt-in and only
+    -- starts from the header, never from a card, slider or toggle.
+    if self.Draggable then
+        connect(self, self.Header.InputBegan, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                self._dragging = true; self._dragStart = input.Position; self._windowStart = self.Window.Position
+            end
+        end)
+        connect(self, self.Header.InputEnded, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then self._dragging = false end
+        end)
+        connect(self, UserInputService.InputChanged, function(input)
+            if self._dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - self._dragStart
+                self.Window.Position = UDim2.new(self._windowStart.X.Scale, self._windowStart.X.Offset + delta.X, self._windowStart.Y.Scale, self._windowStart.Y.Offset + delta.Y)
+            end
+        end)
+    end
     pcall(function()
         if workspace.CurrentCamera then
             connect(self, workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"), function() self:_applyResponsive() end)
@@ -2413,7 +2489,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 5.7
+AxelUI.Version = 5.8
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
