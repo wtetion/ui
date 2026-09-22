@@ -14,7 +14,7 @@ local function supportsShowcase(library)
         and type(library.SectionMethods.CreateToggle) == "function"
         and type(library.SectionMethods.CreateMultiDropdown) == "function"
         and type(library.SetGlass) == "function"
-        and tonumber(library.Version) ~= nil and tonumber(library.Version) >= 6.2
+        and tonumber(library.Version) ~= nil and tonumber(library.Version) >= 6.3
 end
 
 local function loadAxelUI()
@@ -41,7 +41,7 @@ local function loadAxelUI()
         local compiledOk, library = pcall(function() return compiler(source)() end)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.2 vector-icon fixes. Upload the bundled v6.2 library to that path.")
+            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.3 visual and animation fixes. Upload the bundled v6.3 library to that path.")
         else
             warn("[AxelUI] GitHub source could not be compiled: " .. tostring(library))
         end
@@ -68,7 +68,7 @@ end
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
 if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v6.2 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
+    warn("[AxelUI] No compatible library found. Use the bundled v6.3 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
     return
 end
 
@@ -81,8 +81,9 @@ local Window = AxelUI.CreateWindow({
     -- Set this when your executor stores AxelLogo.png in a subfolder.
     -- AssetFolder = "AxelUI",
     Theme = {
-        Accent = Color3.fromRGB(255, 193, 7),
-        Accent2 = Color3.fromRGB(255, 221, 120),
+        Accent = Color3.fromRGB(224, 164, 69),
+        Accent2 = Color3.fromRGB(247, 210, 139),
+        Accent3 = Color3.fromRGB(139, 91, 43),
         Background = Color3.fromRGB(10, 10, 12),
         Surface = Color3.fromRGB(17, 17, 19),
         Surface2 = Color3.fromRGB(24, 24, 27),
@@ -95,13 +96,13 @@ local Window = AxelUI.CreateWindow({
     -- icon pack is needed. Pass an rbxassetid://... here for your own image.
     Logo = "star",
     -- The shell is slightly translucent; page, cards and controls remain dark/opaque.
-    Glass = { Enabled = true, Transparency = 0.1, AnimatedBorder = true, AnimationDuration = 3.2 },
+    Glass = { Enabled = true, Transparency = 0.24, AnimatedBorder = true, AnimationDuration = 3.2 },
     TabAnimation = true,
     TabAnimationDuration = 0.2,
     Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 6.2  •  Preparing your workspace",
+    LoadingSubtitle = "AxelUI 6.3  •  Preparing your workspace",
 })
 
 Window:Notify({
