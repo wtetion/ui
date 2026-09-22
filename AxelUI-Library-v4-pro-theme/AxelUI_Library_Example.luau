@@ -37,7 +37,7 @@ local function loadAxelUI()
         local compiledOk, library = pcall(function() return compiler(source)() end)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks AddHero/AddPill/AddActionBar. Upload the bundled v5.9 library to that path.")
+            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks AddHero/AddPill/AddActionBar. Upload the bundled v6.0 library to that path.")
         else
             warn("[AxelUI] GitHub source could not be compiled: " .. tostring(library))
         end
@@ -64,7 +64,7 @@ end
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
 if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v5.9 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
+    warn("[AxelUI] No compatible library found. Use the bundled v6.0 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
     return
 end
 
@@ -93,7 +93,7 @@ local Window = AxelUI.CreateWindow({
     Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 5.9  •  Preparing your workspace",
+    LoadingSubtitle = "AxelUI 6.0  •  Preparing your workspace",
 })
 
 Window:Notify({
@@ -133,7 +133,8 @@ end
 
 safeElement(Home, "AddHero", {
     Image = "rbxassetid://86949082023913", -- replace with a scenic rbxassetid/local image if desired
-    ScaleType = Enum.ScaleType.Fit,
+    -- Crop fills the panoramic banner instead of shrinking a square logo to a tiny mark.
+    ScaleType = Enum.ScaleType.Crop,
     WelcomeLabel = "Welcome to",
     WelcomeTitle = "Axel Hub",
     WelcomeContent = "Powerful tools. A smoother way to play.",
