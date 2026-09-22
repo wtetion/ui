@@ -43,9 +43,9 @@ local DEFAULT_THEME = {
     Text = Color3.fromRGB(244, 245, 248),
     SubText = Color3.fromRGB(157, 160, 171),
     Muted = Color3.fromRGB(105, 108, 119),
-    Accent = Color3.fromRGB(224, 164, 69),
-    Accent2 = Color3.fromRGB(247, 210, 139),
-    Accent3 = Color3.fromRGB(139, 91, 43),
+    Accent = Color3.fromRGB(255, 193, 7),
+    Accent2 = Color3.fromRGB(255, 224, 115),
+    Accent3 = Color3.fromRGB(184, 126, 0),
     Success = Color3.fromRGB(91, 220, 139),
     Warning = Color3.fromRGB(255, 184, 74),
     Danger = Color3.fromRGB(255, 99, 111),
@@ -662,6 +662,53 @@ local function pressAnimation(self, button, scaleObject)
     end)
 end
 
+local function addButtonGlass(self, button, restingTransparency)
+    if not button then return end
+    restingTransparency = restingTransparency or 0
+    connect(self, button.MouseEnter, function()
+        tween(button, { BackgroundTransparency = math.max(restingTransparency, 0.12) }, 0.12)
+    end)
+    connect(self, button.MouseLeave, function()
+        tween(button, { BackgroundTransparency = restingTransparency }, 0.16)
+    end)
+    connect(self, button.MouseButton1Down, function()
+        tween(button, { BackgroundTransparency = math.max(restingTransparency, 0.24) }, 0.07)
+    end)
+    connect(self, button.MouseButton1Up, function()
+        tween(button, { BackgroundTransparency = math.max(restingTransparency, 0.16) }, 0.1)
+    end)
+end
+
+local function addGoldGradient(self, button)
+    local gradient = new("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, self.Theme.Accent3),
+            ColorSequenceKeypoint.new(0.24, self.Theme.Accent),
+            ColorSequenceKeypoint.new(0.52, self.Theme.Accent2),
+            ColorSequenceKeypoint.new(0.78, self.Theme.Accent),
+            ColorSequenceKeypoint.new(1, self.Theme.Accent3),
+        }),
+        Transparency = NumberSequence.new(1),
+        Rotation = 0,
+        Offset = Vector2.new(-1, 0),
+    }, button)
+    self._accentTweens = self._accentTweens or {}
+    local ok, animation = pcall(function()
+        return TweenService:Create(gradient, TweenInfo.new(2.8, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {
+            Offset = Vector2.new(1, 0),
+        })
+    end)
+    if ok and animation then
+        table.insert(self._accentTweens, animation)
+        animation:Play()
+    end
+    return gradient
+end
+
+local function setGoldGradientActive(gradient, active)
+    if gradient then gradient.Transparency = NumberSequence.new(active and 0 or 1) end
+end
+
 local function setTextColor(instance, color)
     if instance then pcall(function() instance.TextColor3 = color end) end
 end
@@ -824,8 +871,10 @@ end
 function AxelUI:_setActiveTab(tab, active)
     if not tab or not tab.Button then return end
     local color = active and self.Theme.Accent or self.Theme.SubText
-    local background = active and self.Theme.Element or self.Theme.Surface
+    local background = active and Color3.new(1, 1, 1) or self.Theme.Surface
     tween(tab.Button, { BackgroundColor3 = background }, 0.18)
+    tab.Button.BackgroundTransparency = active and 0.02 or 0
+    setGoldGradientActive(tab.GoldGradient, active)
     if tab.TabStroke then
         tween(tab.TabStroke, { Transparency = active and 0.05 or 0.9, Color = active and self.Theme.Accent or self.Theme.Border }, 0.18)
     end
@@ -881,10 +930,16 @@ end
 
 function AxelUI:SetStatus(text, color)
     if not self.StatusText then return end
-    self.StatusText.Text = tostring(text or "Ready")
+    local status = tostring(text or "Ready")
+    self.StatusText.Text = status
     local tint = color or self.Theme.Success
     self.StatusDot.BackgroundColor3 = tint
     self.StatusText.TextColor3 = tint
+    if self.RestoreStatusText then
+        self.RestoreStatusText.Text = status
+        self.RestoreStatusText.TextColor3 = tint
+    end
+    if self.RestoreStatusDot then self.RestoreStatusDot.BackgroundColor3 = tint end
 end
 
 function AxelUI:Notify(message, content, notificationType)
@@ -1532,10 +1587,11 @@ function AxelUI:AddTab(data)
         BackgroundColor3 = self.Theme.Surface,
         BorderSizePixel = 0,
         Text = "",
-        Size = UDim2.new(1, 0, 0, 39),
+        Size = UDim2.new(1, 0, 0, 40),
     }, self.TabList)
-    corner(button, 9)
+    corner(button, 11)
     local tabStroke = stroke(button, self.Theme.Border, 0.62, 1)
+    tab.GoldGradient = addGoldGradient(self, button)
     local indicator = new("Frame", {
         BackgroundColor3 = self.Theme.Accent,
         BackgroundTransparency = 1,
@@ -1592,6 +1648,7 @@ function AxelUI:AddTab(data)
     connect(self, button.MouseLeave, function()
         if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.9, Color = self.Theme.Border }, 0.16) end
     end)
+    addButtonGlass(self, button, 0)
     pressAnimation(self, button)
     if #self.Tabs == 1 then self:SelectTab(tab) end
     if self._applyResponsive then self:_applyResponsive() end
@@ -1694,11 +1751,11 @@ function AxelUI.TabMethods:LayoutPills()
     local mobile = self.Window.IsMobile
     local heroHeight = self.Hero and (mobile and (self.HeroMobileHeight or self.HeroHeight or 104) or (self.HeroHeight or 104)) or 0
     local heroTop = self.HideHeader and (mobile and 16 or 18) or 50
-    local pillY = heroHeight > 0 and (heroTop + heroHeight + 10) or 50
-    local bodyY = heroHeight > 0 and (heroTop + heroHeight + 54) or 86
-    local bodyBottom = heroHeight > 0 and (heroTop + heroHeight + 64) or 96
+    local pillY = heroHeight > 0 and (heroTop + heroHeight + 14) or 54
+    local bodyY = heroHeight > 0 and (heroTop + heroHeight + 58) or 90
+    local bodyBottom = heroHeight > 0 and (heroTop + heroHeight + 68) or 100
     self.PillBar.Position = UDim2.fromOffset(mobile and 8 or 13, pillY)
-    self.PillBar.Size = UDim2.new(1, mobile and -16 or -26, 0, 30)
+    self.PillBar.Size = UDim2.new(1, mobile and -16 or -26, 0, 34)
     self.PageBody.Position = UDim2.fromOffset(mobile and 8 or 13, bodyY)
     self.PageBody.Size = UDim2.new(1, mobile and -16 or -26, 1, -bodyBottom)
 end
@@ -1708,7 +1765,9 @@ function AxelUI.TabMethods:SelectPill(pill)
     for _, other in ipairs(self.Pills or {}) do
         local active = other == pill
         other.Active = active
-        tween(other.Button, { BackgroundColor3 = active and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
+        tween(other.Button, { BackgroundColor3 = active and Color3.new(1, 1, 1) or self.Window.Theme.Element }, 0.16)
+        other.Button.BackgroundTransparency = active and 0.02 or 0
+        setGoldGradientActive(other.GoldGradient, active)
         if other.Stroke then tween(other.Stroke, { Transparency = active and 0.02 or 0.72, Color = active and self.Window.Theme.Accent2 or self.Window.Theme.Border }, 0.16) end
         setTextColor(other.Title, active and self.Window.Theme.Background or self.Window.Theme.SubText)
     end
@@ -1728,7 +1787,7 @@ function AxelUI.TabMethods:AddPill(data)
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(),
             ScrollBarThickness = 0,
-            Size = UDim2.new(1, -26, 0, 30),
+            Size = UDim2.new(1, -26, 0, 34),
             Position = UDim2.fromOffset(13, 50),
             ZIndex = 3,
         }, self.Page)
@@ -1747,13 +1806,14 @@ function AxelUI.TabMethods:AddPill(data)
         TextSize = 10,
         FontFace = fontFace(nil, true),
         TextXAlignment = Enum.TextXAlignment.Center,
-        Size = UDim2.fromOffset(buttonWidth, 28),
+        Size = UDim2.fromOffset(buttonWidth, 30),
         ZIndex = 4,
     }, self.PillBar)
-    corner(button, 14)
+    corner(button, 15)
     local pillStroke = stroke(button, self.Window.Theme.Border, 0.72, 1)
+    local goldGradient = addGoldGradient(self.Window, button)
     local title = button
-    local pill = { Tab = self, Button = button, Title = title, Stroke = pillStroke, Name = name, Callback = data.Callback or data.callback, Active = false }
+    local pill = { Tab = self, Button = button, Title = title, Stroke = pillStroke, GoldGradient = goldGradient, Name = name, Callback = data.Callback or data.callback, Active = false }
     table.insert(self.Pills, pill)
     connect(self.Window, button.MouseButton1Click, function() self:SelectPill(pill) end)
     connect(self.Window, button.MouseEnter, function()
@@ -1762,6 +1822,7 @@ function AxelUI.TabMethods:AddPill(data)
     connect(self.Window, button.MouseLeave, function()
         if not pill.Active then tween(pillStroke, { Transparency = 0.72, Color = self.Window.Theme.Border }, 0.16) end
     end)
+    addButtonGlass(self.Window, button, 0)
     pressAnimation(self.Window, button)
     if #self.Pills == 1 or data.Active then self:SelectPill(pill) end
     self:LayoutPills()
@@ -2178,6 +2239,7 @@ function AxelUI.SectionMethods:AddActionBar(data)
         corner(button, 8)
         local actionStroke = stroke(button, item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Border, 0.24, 1)
         pressAnimation(self.Window, button)
+        addButtonGlass(self.Window, button, 0)
         connect(self.Window, button.MouseEnter, function()
             tween(button, { BackgroundColor3 = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.ElementHover }, 0.12)
             tween(actionStroke, { Transparency = 0.02, Color = self.Window.Theme.Accent2 }, 0.12)
@@ -2807,6 +2869,8 @@ function AxelUI:Unload()
     self._destroyed = true
     if self._edgeTween then pcall(function() self._edgeTween:Cancel() end); self._edgeTween = nil end
     if self._tabTween then pcall(function() self._tabTween:Cancel() end); self._tabTween = nil end
+    for _, animation in ipairs(self._accentTweens or {}) do pcall(function() animation:Cancel() end) end
+    self._accentTweens = {}
     for _, connection in ipairs(self._connections) do pcall(function() connection:Disconnect() end) end
     self._connections = {}
     if self._dropdownClose then pcall(self._dropdownClose) end
@@ -3085,6 +3149,7 @@ function AxelUI.new(options)
         local buttonIcon = icon(button, kind, 12, self.Theme.SubText)
         buttonIcon.AnchorPoint = Vector2.new(0.5, 0.5)
         buttonIcon.Position = UDim2.fromScale(0.5, 0.5)
+        addButtonGlass(self, button, 0.18)
         pressAnimation(self, button)
         connect(self, button.MouseButton1Click, callback)
         return button
@@ -3159,8 +3224,8 @@ function AxelUI.new(options)
     new("Frame", { BackgroundColor3 = self.Theme.Border, BackgroundTransparency = 0.35, BorderSizePixel = 0, Position = UDim2.fromOffset(14, 70), Size = UDim2.new(1, -28, 0, 1) }, sidebar)
     local navTitle = textLabel(sidebar, "NAVIGATION", 9, self.Theme.Muted, true); navTitle.Position = UDim2.fromOffset(14, 84); navTitle.Size = UDim2.new(1, -28, 0, 16)
     self.NavTitle = navTitle
-    self.TabList = new("ScrollingFrame", { Active = true, AutomaticCanvasSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), Position = UDim2.fromOffset(8, 108), ScrollBarImageColor3 = self.Theme.Accent, ScrollBarThickness = 2, Size = UDim2.new(1, -16, 1, -188) }, sidebar)
-    new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, self.TabList)
+    self.TabList = new("ScrollingFrame", { Active = true, AutomaticCanvasSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), Position = UDim2.fromOffset(8, 112), ScrollBarImageColor3 = self.Theme.Accent, ScrollBarThickness = 2, Size = UDim2.new(1, -16, 1, -192) }, sidebar)
+    new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, self.TabList)
     local profile = new("Frame", { BackgroundColor3 = self.Theme.Element, BackgroundTransparency = 0, BorderSizePixel = 0, Position = UDim2.new(0, 12, 1, -112), Size = UDim2.new(1, -24, 0, 52) }, sidebar)
     corner(profile, 11); stroke(profile, self.Theme.Border, 0.28, 1)
     local avatar = new("ImageLabel", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Size = UDim2.fromOffset(30, 30), Position = UDim2.fromOffset(8, 9), Image = "", ScaleType = Enum.ScaleType.Crop }, profile)
@@ -3184,6 +3249,13 @@ function AxelUI.new(options)
 
     self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 58), Size = UDim2.new(1, -170, 1, -58), ZIndex = 1, ClipsDescendants = true }, self.Window)
     corner(self.PageHolder, 18)
+    -- Keep the subtle glitter in the glass backdrop only. Reparenting it below
+    -- the page content prevents sparkles from appearing over opaque controls.
+    self.GlitterLayer.Parent = self.PageHolder
+    self.GlitterLayer.ZIndex = 1
+    for _, glint in ipairs(self.GlitterLayer:GetChildren()) do
+        if glint.Name == "AxelGlint" then glint.ZIndex = 1 end
+    end
     self.PageCornerCaps = {
         new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
         new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.new(1, -18, 0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
@@ -3206,32 +3278,69 @@ function AxelUI.new(options)
         Size = UDim2.fromOffset(300, 0),
         ZIndex = 300,
     }, self.Gui)
-    if typeof(options.RestoreButtonPosition) == "UDim2" then
-        self.TouchButton.Position = options.RestoreButtonPosition
-    elseif self.StartMinimized then
-        self.TouchButton.Position = UDim2.new(0.5, -22, 0.5, -22)
-    end
     new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right }, self.NotificationHolder)
 
     self.TouchButton = new("TextButton", {
         AutoButtonColor = false,
         BackgroundColor3 = self.Theme.Element,
+        BackgroundTransparency = 0.02,
         BorderSizePixel = 0,
         Text = "",
-        Size = UDim2.fromOffset(44, 44),
+        Size = UDim2.fromOffset(188, 48),
         Position = UDim2.new(1, -62, 1, -62),
         Visible = false,
         ZIndex = 250,
     }, self.Gui)
-    corner(self.TouchButton, 22)
-    stroke(self.TouchButton, self.Theme.Accent, 0.18, 1)
+    corner(self.TouchButton, 16)
+    stroke(self.TouchButton, self.Theme.Accent, 0.12, 1.25)
     self.TouchButton.Name = "AxelRestoreButton"
     self.RestoreScale = new("UIScale", { Scale = 1 }, self.TouchButton)
     local touchStroke = self.TouchButton:FindFirstChildOfClass("UIStroke")
     if touchStroke then touchStroke.Thickness = 1.5; touchStroke.Transparency = 0.08 end
-    local touchIcon = icon(self.TouchButton, "star", 23, self.Theme.Accent2)
-    touchIcon.AnchorPoint = Vector2.new(0.5, 0.5); touchIcon.Position = UDim2.fromScale(0.5, 0.5); touchIcon.ZIndex = 251
+    local avatarPlate = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(32, 32), ZIndex = 251 }, self.TouchButton)
+    corner(avatarPlate, 10)
+    local restoreAvatar = new("ImageLabel", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), Image = "", ScaleType = Enum.ScaleType.Crop, Visible = false, ZIndex = 252 }, avatarPlate)
+    corner(restoreAvatar, 10)
+    local touchIcon = icon(avatarPlate, "star", 19, self.Theme.Accent2)
+    touchIcon.AnchorPoint = Vector2.new(0.5, 0.5); touchIcon.Position = UDim2.fromScale(0.5, 0.5); touchIcon.ZIndex = 253
+    if self.ProfileAvatar then
+        pcall(function()
+            if self.ProfileAvatar.IsLoaded and self.ProfileAvatar.Image ~= "" then
+                restoreAvatar.Image = self.ProfileAvatar.Image
+                restoreAvatar.Visible = true
+                touchIcon.Visible = false
+            end
+        end)
+        connect(self, self.ProfileAvatar.ImageLoaded, function()
+            if self.ProfileAvatar.Image ~= "" then
+                restoreAvatar.Image = self.ProfileAvatar.Image
+                restoreAvatar.Visible = true
+                touchIcon.Visible = false
+            end
+        end)
+    end
+    self.RestoreAvatar = restoreAvatar
+    local launcherTitle = textLabel(self.TouchButton, "Axel Hub", 11, self.Theme.Text, true)
+    launcherTitle.Position = UDim2.fromOffset(48, 7); launcherTitle.Size = UDim2.new(1, -58, 0, 16); launcherTitle.ZIndex = 252
+    local statusDot = new("Frame", { BackgroundColor3 = self.Theme.Success, BorderSizePixel = 0, Position = UDim2.fromOffset(49, 29), Size = UDim2.fromOffset(6, 6), ZIndex = 252 }, self.TouchButton)
+    corner(statusDot, 3)
+    self.RestoreStatusDot = statusDot
+    local launcherStatus = textLabel(self.TouchButton, "Online", 9, self.Theme.Success, false)
+    launcherStatus.Position = UDim2.fromOffset(59, 24); launcherStatus.Size = UDim2.new(0, 41, 0, 16); launcherStatus.ZIndex = 252; launcherStatus.TextTruncate = Enum.TextTruncate.AtEnd
+    self.RestoreStatusText = launcherStatus
+    local launcherFps = textLabel(self.TouchButton, "-- FPS", 9, self.Theme.Accent2, true)
+    launcherFps.Position = UDim2.fromOffset(102, 24); launcherFps.Size = UDim2.fromOffset(43, 16); launcherFps.ZIndex = 252; launcherFps.TextXAlignment = Enum.TextXAlignment.Right
+    self.RestoreFpsText = launcherFps
+    local launcherPing = textLabel(self.TouchButton, "-- ms", 9, self.Theme.SubText, false)
+    launcherPing.Position = UDim2.new(1, -39, 0, 24); launcherPing.Size = UDim2.fromOffset(33, 16); launcherPing.ZIndex = 252; launcherPing.TextXAlignment = Enum.TextXAlignment.Right
+    self.RestorePingText = launcherPing
+    if typeof(options.RestoreButtonPosition) == "UDim2" then
+        self.TouchButton.Position = options.RestoreButtonPosition
+    elseif self.StartMinimized then
+        self.TouchButton.Position = UDim2.new(0.5, -94, 0.5, -24)
+    end
     self.RestoreButton = self.TouchButton
+    addButtonGlass(self, self.TouchButton, 0.02)
     pressAnimation(self, self.TouchButton)
     connect(self, self.TouchButton.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.Touch then
@@ -3263,6 +3372,16 @@ function AxelUI.new(options)
             self._fpsFrames = 0
             self._fpsLastSample = now
             if self.FpsValue then self.FpsValue.Text = tostring(fps) end
+            if self.RestoreFpsText then self.RestoreFpsText.Text = tostring(fps) .. " FPS" end
+            if self.RestorePingText then
+                local player = Players.LocalPlayer
+                local pingOk, pingSeconds = pcall(function()
+                    return player and player:GetNetworkPing()
+                end)
+                self.RestorePingText.Text = pingOk and type(pingSeconds) == "number"
+                    and (tostring(math.max(0, math.floor(pingSeconds * 1000 + 0.5))) .. " ms")
+                    or "-- ms"
+            end
         end
     end)
     connect(self, UserInputService.InputEnded, function(input)
@@ -3372,7 +3491,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.4
+AxelUI.Version = 6.5
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
