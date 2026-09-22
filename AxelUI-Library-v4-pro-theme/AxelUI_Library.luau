@@ -146,6 +146,31 @@ local ICONS = {
     teleport = "10090587519",
     running = "10723422998",
     favorite = "10734924532",
+    -- Friendly aliases used by the reference example. Keeping these mapped
+    -- avoids a blank ImageLabel when a script uses a semantic icon name.
+    utilities = "7734058803",
+    configs = "7733764083",
+    marketplace = "7733770755",
+    shop = "7733770755",
+    speed = "7733674319",
+    timer = "10723345037",
+    contrast = "7733674319",
+    sun = "10734924532",
+}
+
+-- Deterministic text glyphs keep semantic icons readable when an executor cannot
+-- load a Roblox image asset. They are deliberately neutral symbols, not emoji.
+local ICON_FALLBACKS = {
+    dashboard = "▦", home = "⌂", player = "♙", person = "♙", user = "♙",
+    world = "◇", globe = "◎", eye = "◉", eyeoff = "⊘", visible = "◉",
+    utilities = "⌁", wrench = "⌁", configs = "▤", folder = "▱", shop = "◇",
+    cart = "◇", marketplace = "◇", running = "↗", speed = "⌁", arrows = "↟",
+    move = "↝", shield = "⬡", star = "✦", sparkle = "✦", clock = "◷",
+    time = "◷", grid = "▦", save = "↓", download = "↓", upload = "↑",
+    refresh = "↻", server = "□", settings = "⚙", gear = "⚙", power = "◌",
+    check = "✓", x = "×", plus = "+", minus = "−", bolt = "ϟ", teleport = "↗",
+    timer = "◷", discord = "◇", palette = "◈", layers = "▥", contrast = "◐",
+    info = "i", alert = "!", warning = "!", search = "⌕", copy = "▣",
 }
 
 local function copyTheme(theme)
@@ -310,12 +335,39 @@ local function icon(parent, value, size, tint)
         }, parent)
         if config and config.ImageRectOffset then imageLabel.ImageRectOffset = config.ImageRectOffset end
         if config and config.ImageRectSize then imageLabel.ImageRectSize = config.ImageRectSize end
+        -- Image assets can be blocked by the current game or executor. Keep
+        -- the returned ImageLabel API-compatible, but reveal a readable glyph
+        -- in the same slot when Roblox raises ImageFailed.
+        local sourceText = string.lower(tostring(source or ""))
+        local imageFallback = config and config.Fallback or ICON_FALLBACKS[sourceText] or (sourceText:find("logo", 1, true) and "✦") or "◇"
+        local fallbackLabel = textLabel(parent, imageFallback, size or 18, tint or Color3.new(1, 1, 1), true)
+        fallbackLabel.Visible = false
+        fallbackLabel.TextXAlignment = Enum.TextXAlignment.Center
+        fallbackLabel.TextYAlignment = Enum.TextYAlignment.Center
+        fallbackLabel.Position = imageLabel.Position
+        fallbackLabel.Size = imageLabel.Size
+        fallbackLabel.ZIndex = (tonumber(imageLabel.ZIndex) or 0) + 1
+        local function syncFallback()
+            if not imageLabel.Parent or not fallbackLabel.Parent then return end
+            fallbackLabel.Position = imageLabel.Position
+            fallbackLabel.Size = imageLabel.Size
+            fallbackLabel.ZIndex = (tonumber(imageLabel.ZIndex) or 0) + 1
+        end
+        pcall(function()
+            imageLabel:GetPropertyChangedSignal("Position"):Connect(syncFallback)
+            imageLabel:GetPropertyChangedSignal("Size"):Connect(syncFallback)
+            imageLabel:GetPropertyChangedSignal("ZIndex"):Connect(syncFallback)
+            imageLabel.ImageFailed:Connect(function()
+                imageLabel.Visible = false
+                fallbackLabel.Visible = true
+            end)
+        end)
         return imageLabel
     end
     local fallback = config and config.Fallback
     if not fallback then
         local sourceText = string.lower(tostring(source or ""))
-        fallback = sourceText:find("logo", 1, true) and "✦" or "•"
+        fallback = ICON_FALLBACKS[sourceText] or (sourceText:find("logo", 1, true) and "✦") or "◇"
     end
     return textLabel(parent, fallback, size or 18, tint or Color3.new(1, 1, 1), true)
 end
@@ -457,7 +509,7 @@ function AxelUI:_setActiveTab(tab, active)
     local background = active and self.Theme.Element or self.Theme.Surface
     tween(tab.Button, { BackgroundColor3 = background }, 0.18)
     if tab.TabStroke then
-        tween(tab.TabStroke, { Transparency = active and 0.05 or 0.62, Color = active and self.Theme.Accent or self.Theme.Border }, 0.18)
+        tween(tab.TabStroke, { Transparency = active and 0.05 or 0.9, Color = active and self.Theme.Accent or self.Theme.Border }, 0.18)
     end
     setTextColor(tab.Title, color)
     if tab.Icon then tween(tab.Icon, { ImageColor3 = color }, 0.18) end
@@ -1064,7 +1116,7 @@ function AxelUI:AddTab(data)
         if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.24, Color = self.Theme.Accent2 }, 0.14) end
     end)
     connect(self, button.MouseLeave, function()
-        if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.62, Color = self.Theme.Border }, 0.16) end
+        if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.9, Color = self.Theme.Border }, 0.16) end
     end)
     pressAnimation(self, button)
     if #self.Tabs == 1 then self:SelectTab(tab) end
@@ -1653,9 +1705,10 @@ function AxelUI.SectionMethods:AddToggle(data)
         BackgroundColor3 = self.Window.Theme.Element,
         Size = UDim2.fromOffset(40, 20),
         Position = UDim2.new(1, -50, 0.5, -10),
+        ZIndex = 8,
     }, inner)
     corner(track, 10)
-    local knob = new("Frame", { BackgroundColor3 = self.Window.Theme.Muted, Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(3, 3) }, track)
+    local knob = new("Frame", { BackgroundColor3 = self.Window.Theme.Muted, Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(3, 3), ZIndex = 9 }, track)
     corner(knob, 7)
     local handle = { Value = data.Default == true, Row = row }
     function handle:Set(value, silent)
@@ -1685,9 +1738,10 @@ function AxelUI.SectionMethods:AddSlider(data)
     valueText.Size = UDim2.fromOffset(100, 18)
     valueText.Position = UDim2.new(1, -108, 0, 0)
     valueText.TextXAlignment = Enum.TextXAlignment.Right
-    local bar = new("Frame", { BackgroundColor3 = self.Window.Theme.Element, Size = UDim2.new(1, -8, 0, 5), Position = UDim2.new(0, 0, 1, -11) }, inner)
+    valueText.ZIndex = 8
+    local bar = new("Frame", { BackgroundColor3 = self.Window.Theme.Element, Size = UDim2.new(1, -8, 0, 5), Position = UDim2.new(0, 0, 1, -11), ZIndex = 8 }, inner)
     corner(bar, 4)
-    local fill = new("Frame", { BackgroundColor3 = self.Window.Theme.Accent, Size = UDim2.new(0, 0, 1, 0) }, bar)
+    local fill = new("Frame", { BackgroundColor3 = self.Window.Theme.Accent, Size = UDim2.new(0, 0, 1, 0), ZIndex = 9 }, bar)
     corner(fill, 4)
     local handle = { Value = value, Row = row }
     local function setFromX(x, silent)
@@ -1748,6 +1802,7 @@ function AxelUI.SectionMethods:AddDropdown(data)
         FontFace = fontFace(nil, false),
         Size = UDim2.fromOffset(145, 25),
         Position = UDim2.new(1, -155, 0.5, -12),
+        ZIndex = 8,
     }, inner)
     corner(selector, 5)
     local popup
@@ -1826,6 +1881,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         Size = UDim2.fromOffset(155, 25),
         Position = UDim2.new(1, -165, 0.5, -12),
         TextTruncate = Enum.TextTruncate.AtEnd,
+        ZIndex = 8,
     }, inner)
     corner(selector, 5)
     local popup
@@ -1924,6 +1980,7 @@ function AxelUI.SectionMethods:AddColorPicker(data)
         Text = "",
         Size = UDim2.fromOffset(34, 22),
         Position = UDim2.new(1, -44, 0.5, -11),
+        ZIndex = 8,
     }, inner)
     corner(swatch, 7); stroke(swatch, self.Window.Theme.Border, 0.15, 1)
     local popup
@@ -1981,7 +2038,7 @@ function AxelUI.SectionMethods:AddInput(data)
     data = data or {}
     data.Icon = data.Icon or "search"
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 42)
-    local box = new("TextBox", { BackgroundColor3 = self.Window.Theme.Element, BorderSizePixel = 0, ClearTextOnFocus = false, PlaceholderText = tostring(data.Placeholder or "Input"), PlaceholderColor3 = self.Window.Theme.Muted, Text = tostring(data.Default or ""), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(160, 25), Position = UDim2.new(1, -170, 0.5, -12) }, inner)
+    local box = new("TextBox", { BackgroundColor3 = self.Window.Theme.Element, BorderSizePixel = 0, ClearTextOnFocus = false, PlaceholderText = tostring(data.Placeholder or "Input"), PlaceholderColor3 = self.Window.Theme.Muted, Text = tostring(data.Default or ""), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(160, 25), Position = UDim2.new(1, -170, 0.5, -12), ZIndex = 8 }, inner)
     corner(box, 5); pad(box, 8, 8, 0, 0)
     local handle = { Instance = box, Value = box.Text }
     function handle:Set(value, silent)
@@ -2002,7 +2059,7 @@ function AxelUI.SectionMethods:AddKeybind(data)
     data.Icon = data.Icon or "settings"
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local initialKey = keyName(data.Default or "None")
-    local keyButton = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Element, BorderSizePixel = 0, Text = initialKey, TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(100, 25), Position = UDim2.new(1, -110, 0.5, -12) }, inner)
+    local keyButton = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Element, BorderSizePixel = 0, Text = initialKey, TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(100, 25), Position = UDim2.new(1, -110, 0.5, -12), ZIndex = 8 }, inner)
     corner(keyButton, 5)
     local handle = { Value = initialKey, Listening = false }
     function handle:Set(value, silent)
@@ -2040,6 +2097,7 @@ function AxelUI.SectionMethods:AddStatus(data)
     status.Size = UDim2.new(0, 180, 0, 24)
     status.Position = UDim2.new(1, -180, 0, 0)
     status.TextXAlignment = Enum.TextXAlignment.Right
+    status.ZIndex = 8
     local handle = { Instance = status, Text = tostring(data.Text or data.Status or "Ready"), Color = data.Color or self.Window.Theme.Success }
     function handle:Set(value, color)
         self.Text = tostring(value or "Ready"); self.Color = color or self.Color; status.Text = self.Text; status.TextColor3 = self.Color
@@ -2355,7 +2413,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 5.6
+AxelUI.Version = 5.7
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
