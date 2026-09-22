@@ -820,6 +820,8 @@ function AxelUI:_applyResponsive()
         self.ProfileCard.Visible = false
         self.Brand.Visible = false
         self.HeaderSubtitle.Visible = false
+        self.DragHandle.Visible = false
+        self.ResizeHandle.Visible = false
         self.FpsText.Visible = false
         self.StatusSeparator.Visible = false
         self.StatusDot.Visible = false
@@ -847,6 +849,8 @@ function AxelUI:_applyResponsive()
         self.ProfileCard.Visible = true
         self.Brand.Visible = true
         self.HeaderSubtitle.Visible = true
+        self.DragHandle.Visible = self.Draggable
+        self.ResizeHandle.Visible = self.Resizable and not self._maximized
         self.FpsText.Visible = true
         self.StatusSeparator.Visible = true
         self.StatusDot.Visible = true
@@ -2269,7 +2273,8 @@ function AxelUI.new(options)
         DesktopSize = options.Size or UDim2.fromOffset(926, 616),
         AssetFolder = options.AssetFolder or options.AssetRoot or "",
         ConfigFolder = options.ConfigFolder or "AxelUIConfigs",
-        Draggable = options.Draggable == true,
+        Draggable = options.Draggable ~= false,
+        Resizable = options.Resizable ~= false,
         _flags = {},
     }, AxelUI)
     ACTIVE_FONT = options.Font
@@ -2307,6 +2312,17 @@ function AxelUI.new(options)
         Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.2) }),
         Rotation = 0,
     }, header)
+    local dragHandle = new("TextButton", {
+        Active = true,
+        AutoButtonColor = false,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Text = "",
+        Position = UDim2.fromOffset(404, 0),
+        Size = UDim2.new(1, -536, 1, 0),
+        ZIndex = 6,
+    }, header)
+    self.DragHandle = dragHandle
     local logoHolder = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.fromOffset(36, 36), Position = UDim2.fromOffset(16, 15) }, header)
     corner(logoHolder, 8); local logoIcon = icon(logoHolder, options.Logo or "dashboard", 20, self.Theme.Accent2); logoIcon.Position = UDim2.fromOffset(6, 6)
     local brand = textLabel(header, options.Name or "Axel UI", 14, self.Theme.Text, true); brand.Position = UDim2.fromOffset(58, 15); brand.Size = UDim2.fromOffset(150, 20)
@@ -2342,6 +2358,40 @@ function AxelUI.new(options)
     local maximizeButton = headerControl("□", -70, function() self:SetMaximized(not self._maximized) end)
     local unloadButton = headerControl("×", -38, function() self:ConfirmUnload() end)
     self.MinimizeButton, self.MaximizeButton, self.UnloadButton = minimizeButton, maximizeButton, unloadButton
+
+    local resizeHandle = new("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = self.Theme.Element,
+        BackgroundTransparency = 0.12,
+        BorderSizePixel = 0,
+        Text = "◢",
+        TextColor3 = self.Theme.Muted,
+        TextSize = 12,
+        FontFace = fontFace(nil, true),
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -3, 1, -3),
+        Size = UDim2.fromOffset(18, 18),
+        ZIndex = 20,
+    }, self.Window)
+    corner(resizeHandle, 5)
+    self.ResizeHandle = resizeHandle
+    resizeHandle.Visible = self.Resizable
+    connect(self, resizeHandle.InputBegan, function(input)
+        if not self.Resizable or self.IsMobile or self._maximized then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            self._resizing = true
+            self._resizeStart = input.Position
+            self._resizeSize = self.Window.AbsoluteSize
+        end
+    end)
+    connect(self, dragHandle.InputBegan, function(input)
+        if not self.Draggable or self.IsMobile then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            self._dragging = true
+            self._dragStart = input.Position
+            self._windowStart = self.Window.Position
+        end
+    end)
 
     local sidebar = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.new(0, 170, 1, 0), ZIndex = 6 }, self.Window)
     self.Sidebar = sidebar
@@ -2420,24 +2470,28 @@ function AxelUI.new(options)
             if self.FpsText then self.FpsText.Text = "FPS " .. tostring(fps) end
         end
     end)
-    -- Keep the reference layout fixed by default. Dragging is opt-in and only
-    -- starts from the header, never from a card, slider or toggle.
-    if self.Draggable then
-        connect(self, self.Header.InputBegan, function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                self._dragging = true; self._dragStart = input.Position; self._windowStart = self.Window.Position
-            end
-        end)
-        connect(self, self.Header.InputEnded, function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then self._dragging = false end
-        end)
-        connect(self, UserInputService.InputChanged, function(input)
-            if self._dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                local delta = input.Position - self._dragStart
-                self.Window.Position = UDim2.new(self._windowStart.X.Scale, self._windowStart.X.Offset + delta.X, self._windowStart.Y.Scale, self._windowStart.Y.Offset + delta.Y)
-            end
-        end)
-    end
+    connect(self, UserInputService.InputEnded, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            self._dragging = false
+            self._resizing = false
+        end
+    end)
+    connect(self, UserInputService.InputChanged, function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        if self._dragging and self._dragStart and self._windowStart then
+            local delta = input.Position - self._dragStart
+            self.Window.Position = UDim2.new(self._windowStart.X.Scale, self._windowStart.X.Offset + delta.X, self._windowStart.Y.Scale, self._windowStart.Y.Offset + delta.Y)
+        elseif self._resizing and self._resizeStart and self._resizeSize then
+            local delta = input.Position - self._resizeStart
+            local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+            local maxWidth = math.max(760, math.min(1440, viewport.X - 24))
+            local maxHeight = math.max(480, math.min(1000, viewport.Y - 24))
+            local width = math.clamp(self._resizeSize.X + delta.X, math.min(760, maxWidth), maxWidth)
+            local height = math.clamp(self._resizeSize.Y + delta.Y, math.min(480, maxHeight), maxHeight)
+            self.Window.Size = UDim2.fromOffset(width, height)
+            self.DesktopSize = self.Window.Size
+        end
+    end)
     pcall(function()
         if workspace.CurrentCamera then
             connect(self, workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"), function() self:_applyResponsive() end)
@@ -2489,7 +2543,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 5.8
+AxelUI.Version = 5.9
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
