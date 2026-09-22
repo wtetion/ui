@@ -14,7 +14,7 @@ local function supportsShowcase(library)
         and type(library.SectionMethods.CreateToggle) == "function"
         and type(library.SectionMethods.CreateMultiDropdown) == "function"
         and type(library.SetGlass) == "function"
-        and tonumber(library.Version) ~= nil and tonumber(library.Version) >= 6.1
+        and tonumber(library.Version) ~= nil and tonumber(library.Version) >= 6.2
 end
 
 local function loadAxelUI()
@@ -41,7 +41,7 @@ local function loadAxelUI()
         local compiledOk, library = pcall(function() return compiler(source)() end)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.1 fixes/features. Upload the bundled v6.1 library to that path.")
+            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.2 vector-icon fixes. Upload the bundled v6.2 library to that path.")
         else
             warn("[AxelUI] GitHub source could not be compiled: " .. tostring(library))
         end
@@ -68,7 +68,7 @@ end
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
 if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v6.1 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
+    warn("[AxelUI] No compatible library found. Use the bundled v6.2 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
     return
 end
 
@@ -91,9 +91,9 @@ local Window = AxelUI.CreateWindow({
         -- the active state, focus glow and primary actions.
         Border = Color3.fromRGB(58, 59, 67),
     },
-    -- This is the supplied Roblox asset. If the asset is unavailable in the
-    -- current game, the library keeps its deterministic logo fallback visible.
-    Logo = "rbxassetid://86949082023913",
+    -- Built-in logo renders from vector UI primitives; no font glyph or remote
+    -- icon pack is needed. Pass an rbxassetid://... here for your own image.
+    Logo = "star",
     -- The shell is slightly translucent; page, cards and controls remain dark/opaque.
     Glass = { Enabled = true, Transparency = 0.1, AnimatedBorder = true, AnimationDuration = 3.2 },
     TabAnimation = true,
@@ -101,7 +101,7 @@ local Window = AxelUI.CreateWindow({
     Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 6.1  •  Preparing your workspace",
+    LoadingSubtitle = "AxelUI 6.2  •  Preparing your workspace",
 })
 
 Window:Notify({
@@ -140,9 +140,9 @@ local function safeSection(tab, data)
 end
 
 safeElement(Home, "AddHero", {
-    Image = "rbxassetid://86949082023913", -- replace with a scenic rbxassetid/local image if desired
-    -- Crop fills the panoramic banner instead of shrinking a square logo to a tiny mark.
-    ScaleType = Enum.ScaleType.Crop,
+    Image = "rbxassetid://86949082023913", -- replace with a wide banner asset for the reference sunset scene
+    -- Fit preserves the full image when users import a square PNG/logo.
+    ScaleType = Enum.ScaleType.Fit,
     WelcomeLabel = "Welcome to",
     WelcomeTitle = "Axel Hub",
     WelcomeContent = "Powerful tools. A smoother way to play.",
