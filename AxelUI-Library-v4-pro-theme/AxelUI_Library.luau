@@ -963,6 +963,7 @@ local function makeSubTabCard(window, parent, title)
     local card = new("Frame", {
         BackgroundColor3 = window.Theme.Surface,
         BorderSizePixel = 0,
+        ClipsDescendants = true,
         Size = UDim2.new(1, -5, 0, 0),
     }, parent)
     corner(card, 8)
@@ -978,6 +979,7 @@ local function makeSubTabCard(window, parent, title)
     cardTitle.Size = UDim2.new(1, -10, 0, 20)
     local body = new("Frame", {
         BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(0, 32),
         Size = UDim2.new(1, 0, 0, 0),
     }, card)
     pad(body, 10, 10, 2, 10)
@@ -1126,12 +1128,13 @@ function AxelUI.TabMethods:AddHero(data)
         ZIndex = 3,
     }, hero)
     corner(banner, 11); stroke(banner, self.Window.Theme.Border, 0.14, 1)
-    new("UIGradient", { Color = ColorSequence.new(self.Window.Theme.Element, self.Window.Theme.Surface), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.12) }), Rotation = 25 }, banner)
     local source = imageSource(data.Image or data.Source or data.Asset, self.Window.AssetFolder)
+    banner.BackgroundColor3 = source and self.Window.Theme.Element or Color3.fromRGB(61, 45, 24)
+    new("UIGradient", { Color = source and ColorSequence.new(self.Window.Theme.Element, self.Window.Theme.Surface) or ColorSequence.new(Color3.fromRGB(107, 71, 26), self.Window.Theme.Background), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, source and 0.02 or 0.08), NumberSequenceKeypoint.new(1, source and 0.12 or 0.24) }), Rotation = 25 }, banner)
     local picture = new("ImageLabel", { BackgroundTransparency = 1, Image = source or "", ImageTransparency = tonumber(data.ImageTransparency) or 0.08, ScaleType = data.ScaleType or Enum.ScaleType.Crop, Size = UDim2.fromScale(1, 1), ZIndex = 4 }, banner)
     local shade = new("Frame", { BackgroundColor3 = self.Window.Theme.Background, BackgroundTransparency = source and 0.28 or 0.04, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 5 }, banner)
     new("UIGradient", { Color = ColorSequence.new(self.Window.Theme.Background, self.Window.Theme.Element), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.04), NumberSequenceKeypoint.new(0.58, 0.22), NumberSequenceKeypoint.new(1, 0.78) }), Rotation = 0 }, shade)
-    local fallback = textLabel(banner, data.FallbackText or "AXEL HUB", 11, self.Window.Theme.Muted, true)
+    local fallback = textLabel(banner, data.FallbackText or "AXEL HUB", 11, source and self.Window.Theme.Muted or self.Window.Theme.Accent2, true)
     fallback.AnchorPoint = Vector2.new(0.5, 0.5); fallback.Position = UDim2.fromScale(0.72, 0.5); fallback.Size = UDim2.fromOffset(150, 18); fallback.TextXAlignment = Enum.TextXAlignment.Center; fallback.Visible = source == nil; fallback.ZIndex = 6
     pcall(function()
         connect(self.Window, picture.ImageFailed, function() picture.Visible = false; shade.BackgroundTransparency = 0.04; fallback.Visible = true end)
@@ -1210,16 +1213,16 @@ function AxelUI.TabMethods:AddPill(data)
         BackgroundColor3 = self.Window.Theme.Element,
         BorderSizePixel = 0,
         LayoutOrder = #self.Pills + 1,
-        Text = "",
+        Text = name,
+        TextColor3 = self.Window.Theme.SubText,
+        TextSize = 10,
+        FontFace = fontFace(nil, true),
+        TextXAlignment = Enum.TextXAlignment.Center,
         Size = UDim2.fromOffset(buttonWidth, 28),
         ZIndex = 4,
     }, self.PillBar)
     corner(button, 14); stroke(button, self.Window.Theme.Border, 0.18, 1)
-    local title = textLabel(button, name, 10, self.Window.Theme.SubText, true)
-    title.Size = UDim2.new(1, -16, 1, 0)
-    title.Position = UDim2.fromOffset(8, 0)
-    title.TextXAlignment = Enum.TextXAlignment.Center
-    title.ZIndex = 5
+    local title = button
     local pill = { Tab = self, Button = button, Title = title, Name = name, Callback = data.Callback or data.callback, Active = false }
     table.insert(self.Pills, pill)
     connect(self.Window, button.MouseButton1Click, function() self:SelectPill(pill) end)
@@ -1342,6 +1345,7 @@ function AxelUI.TabMethods:AddSection(data)
     local card = new("Frame", {
         BackgroundColor3 = self.Window.Theme.Surface,
         BorderSizePixel = 0,
+        ClipsDescendants = true,
         Size = UDim2.new(1, -5, 0, 0),
         LayoutOrder = data.LayoutOrder or 0,
     }, parent)
@@ -1375,7 +1379,7 @@ function AxelUI.TabMethods:AddSection(data)
         description.Position = UDim2.fromOffset(0, 20)
         description.TextWrapped = true
     end
-    local body = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0) }, card)
+    local body = new("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(0, headerHeight), Size = UDim2.new(1, 0, 0, 0) }, card)
     pad(body, 10, 10, 2, 6)
     local layout = new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, body)
     local syncBodyHeight
@@ -2351,7 +2355,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 5.5
+AxelUI.Version = 5.6
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
