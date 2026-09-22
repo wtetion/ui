@@ -237,6 +237,13 @@ local function imageSource(value, assetFolder)
     return nil
 end
 
+local function imageThumbnailSource(source, width, height)
+    local text = tostring(source or "")
+    local id = text:match("^rbxassetid://(%d+)$") or text:match("^(%d+)$")
+    if not id then return nil end
+    return string.format("rbxthumb://type=Asset&id=%s&w=%d&h=%d", id, tonumber(width) or 420, tonumber(height) or 420)
+end
+
 local function fontFace(value, bold)
     local enumValue = value or ACTIVE_FONT or (bold and Enum.Font.GothamBold or Enum.Font.Gotham)
     local ok, result = pcall(function()
@@ -547,9 +554,12 @@ local function fadeIcon(object, duration)
     end
 end
 
-local function watchImage(imageLabel, onLoaded, onTimeout, timeout)
+local function watchImage(imageLabel, onLoaded, onTimeout, timeout, fallbackSources)
     if not imageLabel then return end
     local state = "pending"
+    local timeoutSeconds = tonumber(timeout) or 5
+    local fallbackIndex = 0
+    local timeoutGeneration = 0
     local function refresh()
         if not imageLabel.Parent then return end
         local ok, loaded = pcall(function() return imageLabel.IsLoaded end)
@@ -565,12 +575,31 @@ local function watchImage(imageLabel, onLoaded, onTimeout, timeout)
     end
     watchProperty("IsLoaded")
     watchProperty("Image")
-    task.delay(tonumber(timeout) or 4, function()
-        if imageLabel.Parent and state == "pending" then
-            state = "timeout"
+    local function armTimeout()
+        timeoutGeneration = timeoutGeneration + 1
+        local generation = timeoutGeneration
+        task.delay(timeoutSeconds, function()
+            if not imageLabel.Parent or state ~= "pending" or generation ~= timeoutGeneration then return end
+            while type(fallbackSources) == "table" and fallbackIndex < #fallbackSources do
+                fallbackIndex = fallbackIndex + 1
+                local candidate = fallbackSources[fallbackIndex]
+                local current = ""
+                pcall(function() current = imageLabel.Image end)
+                if type(candidate) == "string" and candidate ~= "" and candidate ~= current then
+                    local ok = pcall(function() imageLabel.Image = candidate end)
+                    if ok then
+                        state = "pending"
+                        armTimeout()
+                        refresh()
+                        return
+                    end
+                end
+            end
+            state = "failed"
             if type(onTimeout) == "function" then pcall(onTimeout) end
-        end
-    end)
+        end)
+    end
+    armTimeout()
     refresh()
 end
 
@@ -895,8 +924,8 @@ end
 
 function AxelUI:_setActiveTab(tab, active)
     if not tab or not tab.Button then return end
-    local color = active and self.Theme.Accent or self.Theme.SubText
-    local background = active and Color3.new(1, 1, 1) or self.Theme.Surface
+    local color = active and self.Theme.Background or self.Theme.SubText
+    local background = active and self.Theme.Accent or self.Theme.Surface
     tween(tab.Button, { BackgroundColor3 = background }, 0.18)
     tab.Button.BackgroundTransparency = active and 0.02 or 0
     setGoldGradientActive(tab.GoldGradient, active)
@@ -1745,16 +1774,23 @@ function AxelUI.TabMethods:AddHero(data)
     new("UIGradient", { Color = ColorSequence.new(self.Window.Theme.Background, self.Window.Theme.Element), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.04), NumberSequenceKeypoint.new(0.58, 0.22), NumberSequenceKeypoint.new(1, 0.78) }), Rotation = 0 }, shade)
     local bannerTextZ = math.max(tonumber(picture.ZIndex) or 0, tonumber(shade.ZIndex) or 0) + 2
     local fallback = textLabel(banner, data.FallbackText or "AXEL HUB", 11, source and self.Window.Theme.Muted or self.Window.Theme.Accent2, true)
-    fallback.AnchorPoint = Vector2.new(0.5, 0.5); fallback.Position = UDim2.fromScale(0.72, 0.5); fallback.Size = UDim2.fromOffset(150, 18); fallback.TextXAlignment = Enum.TextXAlignment.Center; fallback.Visible = source == nil; fallback.ZIndex = bannerTextZ
+    fallback.AnchorPoint = Vector2.new(0.5, 0.5); fallback.Position = UDim2.fromScale(0.78, 0.82); fallback.Size = UDim2.fromOffset(150, 18); fallback.TextXAlignment = Enum.TextXAlignment.Center; fallback.Visible = source == nil; fallback.ZIndex = bannerTextZ
+    local fallbackIcon = icon(banner, "star", 32, self.Window.Theme.Accent2)
+    fallbackIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+    fallbackIcon.Position = UDim2.fromScale(0.78, 0.48)
+    fallbackIcon.Visible = source == nil
+    fallbackIcon.ZIndex = bannerTextZ
     if source then
         watchImage(picture, function()
             picture.Visible = true
             fallback.Visible = false
+            fallbackIcon.Visible = false
         end, function()
             picture.Visible = false
             shade.BackgroundTransparency = 0.04
             fallback.Visible = true
-        end)
+            fallbackIcon.Visible = true
+        end, 5, { imageThumbnailSource(source, 420, 420) })
     end
     local title = textLabel(banner, data.BannerTitle or data.Title or "Customize your experience", 14, self.Window.Theme.Text, true)
     title.Position = UDim2.fromOffset(14, 13); title.Size = UDim2.new(0.62, 0, 0, 22); title.ZIndex = bannerTextZ
@@ -1773,7 +1809,7 @@ function AxelUI.TabMethods:AddHero(data)
     self.Window:_registerSearch(hero, tostring(data.Title or "") .. " " .. tostring(data.Content or ""))
     if self.Window.ActiveTab == self and self.Window.TabHeader then self.Window.TabHeader.Visible = not self.HideHeader end
     if self.Window._applyResponsive then self.Window:_applyResponsive() end
-    return { Instance = hero, Banner = banner, Image = picture, Fallback = fallback, Title = title, Content = content, WelcomeTitle = welcomeTitle, Button = action }
+    return { Instance = hero, Banner = banner, Image = picture, Fallback = fallback, FallbackIcon = fallbackIcon, Title = title, Content = content, WelcomeTitle = welcomeTitle, Button = action }
 end
 
 -- Lightweight dashboard pills. Unlike AddSubTab, these are presentation tabs:
@@ -1798,11 +1834,11 @@ function AxelUI.TabMethods:SelectPill(pill)
     for _, other in ipairs(self.Pills or {}) do
         local active = other == pill
         other.Active = active
-        tween(other.Button, { BackgroundColor3 = active and Color3.new(1, 1, 1) or self.Window.Theme.Element }, 0.16)
+        tween(other.Button, { BackgroundColor3 = active and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
         other.Button.BackgroundTransparency = active and 0.02 or 0
         setGoldGradientActive(other.GoldGradient, active)
-        if other.Stroke then tween(other.Stroke, { Transparency = active and 0.02 or 0.72, Color = active and self.Window.Theme.Accent2 or self.Window.Theme.Border }, 0.16) end
-        setTextColor(other.Title, active and self.Window.Theme.Background or self.Window.Theme.SubText)
+        if other.Stroke then tween(other.Stroke, { Transparency = active and 0.02 or 0.42, Color = active and self.Window.Theme.Accent2 or self.Window.Theme.Accent3 }, 0.16) end
+        setTextColor(other.Title, active and self.Window.Theme.Background or self.Window.Theme.Accent2)
     end
     self.ActivePill = pill
     if type(pill.Callback) == "function" then
@@ -1843,17 +1879,23 @@ function AxelUI.TabMethods:AddPill(data)
         ZIndex = 4,
     }, self.PillBar)
     corner(button, 15)
-    local pillStroke = stroke(button, self.Window.Theme.Border, 0.72, 1)
+    local pillStroke = stroke(button, self.Window.Theme.Accent3, 0.42, 1)
     local goldGradient = addGoldGradient(self.Window, button)
     local title = button
     local pill = { Tab = self, Button = button, Title = title, Stroke = pillStroke, GoldGradient = goldGradient, Name = name, Callback = data.Callback or data.callback, Active = false }
     table.insert(self.Pills, pill)
     connect(self.Window, button.MouseButton1Click, function() self:SelectPill(pill) end)
     connect(self.Window, button.MouseEnter, function()
-        if not pill.Active then tween(pillStroke, { Transparency = 0.22, Color = self.Window.Theme.Accent2 }, 0.13) end
+        if not pill.Active then
+            tween(pillStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2 }, 0.13)
+            tween(button, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.13)
+        end
     end)
     connect(self.Window, button.MouseLeave, function()
-        if not pill.Active then tween(pillStroke, { Transparency = 0.72, Color = self.Window.Theme.Border }, 0.16) end
+        if not pill.Active then
+            tween(pillStroke, { Transparency = 0.42, Color = self.Window.Theme.Accent3 }, 0.16)
+            tween(button, { BackgroundColor3 = self.Window.Theme.Element }, 0.16)
+        end
     end)
     addButtonGlass(self.Window, button, 0)
     pressAnimation(self.Window, button)
@@ -2148,7 +2190,7 @@ function AxelUI.SectionMethods:AddBanner(data)
             picture.Visible = false
             shade.BackgroundTransparency = 0.08
             fallback.Visible = true
-        end)
+        end, 5, { imageThumbnailSource(source, 420, 420) })
     end
     local title = textLabel(holder, data.Title or data.Name or "Welcome", 14, self.Window.Theme.Text, true)
     local bannerTextZ = math.max(tonumber(picture.ZIndex) or 0, tonumber(shade.ZIndex) or 0) + 2
@@ -2216,7 +2258,7 @@ function AxelUI.SectionMethods:AddImage(data)
         end, function()
             picture.Visible = false
             fallback.Visible = true
-        end)
+        end, 5, { imageThumbnailSource(source, 150, 150) })
     end
     if data.Caption then
         local caption = textLabel(holder, data.Caption, 10, self.Window.Theme.SubText, false)
@@ -3271,9 +3313,13 @@ function AxelUI.new(options)
     corner(avatar, 15)
     local avatarFallback = icon(profile, "user", 20, self.Theme.SubText)
     avatarFallback.Position = UDim2.fromOffset(13, 14); avatarFallback.ZIndex = avatar.ZIndex + 1
+    local avatarRetries = {}
     pcall(function()
         local player = Players.LocalPlayer
-        if player then avatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100) end
+        if player then
+            avatar.Image = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", player.UserId)
+            table.insert(avatarRetries, string.format("rbxthumb://type=Avatar&id=%d&w=150&h=150", player.UserId))
+        end
     end)
     watchImage(avatar, function()
         avatar.Visible = true
@@ -3281,11 +3327,12 @@ function AxelUI.new(options)
     end, function()
         avatar.Visible = false
         avatarFallback.Visible = true
-    end)
+    end, 5, avatarRetries)
     local profileName = textLabel(profile, Players.LocalPlayer and Players.LocalPlayer.DisplayName or "Axel User", 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 8); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
     local profileState = textLabel(profile, "Ready to play", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 27); profileState.Size = UDim2.new(1, -54, 0, 14)
     local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -50); footer.Size = UDim2.new(1, -28, 0, 40); footer.TextWrapped = true; footer.TextYAlignment = Enum.TextYAlignment.Top
     self.ProfileCard, self.ProfileAvatar, self.ProfileName = profile, avatar, profileName
+    self._profileAvatarRetries = avatarRetries
     self.Footer = footer
 
     self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 58), Size = UDim2.new(1, -170, 1, -58), ZIndex = 1, ClipsDescendants = true }, self.Window)
@@ -3361,6 +3408,7 @@ function AxelUI.new(options)
     local touchIcon = icon(avatarPlate, "star", 19, self.Theme.Accent2)
     touchIcon.AnchorPoint = Vector2.new(0.5, 0.5); touchIcon.Position = UDim2.fromScale(0.5, 0.5); touchIcon.ZIndex = 253
     if self.ProfileAvatar then
+        pcall(function() restoreAvatar.Image = self.ProfileAvatar.Image end)
         watchImage(self.ProfileAvatar, function()
             local imageOk, image = pcall(function() return self.ProfileAvatar.Image end)
             if imageOk and image ~= "" then
@@ -3371,7 +3419,7 @@ function AxelUI.new(options)
         end, function()
             restoreAvatar.Visible = false
             touchIcon.Visible = true
-        end)
+        end, 5, self._profileAvatarRetries)
     end
     self.RestoreAvatar = restoreAvatar
     local launcherTitle = textLabel(self.TouchButton, "Axel Hub", 11, self.Theme.Text, true)
@@ -3545,7 +3593,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.7
+AxelUI.Version = 6.8
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
