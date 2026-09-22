@@ -14,7 +14,7 @@ local function hasMethods(owner, names)
 end
 
 local function supportsShowcase(library)
-    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.7 then return false end
+    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.8 then return false end
     return hasMethods(library, {
         "CreateWindow", "AddTab", "Notify", "SetStatus", "SetGlass", "SetTheme",
         "SetFont", "SetBackground", "SaveConfig", "LoadConfig", "SetOpen", "Toggle",
@@ -59,7 +59,7 @@ local function loadAxelUI()
         local compiledOk, library = pcall(function() return compiler(source)() end)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.7 image compatibility fix or full showcase API. Upload the bundled v6.7 library to that path.")
+            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.8 image retry fix or full showcase API. Upload the bundled v6.8 library to that path.")
         else
             warn("[AxelUI] GitHub source could not be compiled: " .. tostring(library))
         end
@@ -86,7 +86,7 @@ end
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
 if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v6.7 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
+    warn("[AxelUI] No compatible library found. Use the bundled v6.8 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
     return
 end
 
@@ -124,7 +124,7 @@ local Window = AxelUI.CreateWindow({
     Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 6.7  •  Preparing your workspace",
+    LoadingSubtitle = "AxelUI 6.8  •  Preparing your workspace",
 })
 
 -- Home follows the reference composition: hero, pill tabs, then two columns of cards.
