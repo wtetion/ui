@@ -161,16 +161,18 @@ local ICONS = {
 -- Deterministic text glyphs keep semantic icons readable when an executor cannot
 -- load a Roblox image asset. They are deliberately neutral symbols, not emoji.
 local ICON_FALLBACKS = {
-    dashboard = "▦", home = "⌂", player = "♙", person = "♙", user = "♙",
-    world = "◇", globe = "◎", eye = "◉", eyeoff = "⊘", visible = "◉",
-    utilities = "⌁", wrench = "⌁", configs = "▤", folder = "▱", shop = "◇",
-    cart = "◇", marketplace = "◇", running = "↗", speed = "⌁", arrows = "↟",
-    move = "↝", shield = "⬡", star = "✦", sparkle = "✦", clock = "◷",
-    time = "◷", grid = "▦", save = "↓", download = "↓", upload = "↑",
-    refresh = "↻", server = "□", settings = "⚙", gear = "⚙", power = "◌",
-    check = "✓", x = "×", plus = "+", minus = "−", bolt = "ϟ", teleport = "↗",
-    timer = "◷", discord = "◇", palette = "◈", layers = "▥", contrast = "◐",
-    info = "i", alert = "!", warning = "!", search = "⌕", copy = "▣",
+    dashboard = "▦", grid = "▦", home = "⌂", player = "♙", person = "♙", user = "♙", users = "♙",
+    world = "◇", globe = "◎", map = "⌖", compass = "⊙", eye = "◉", eyeoff = "⊘", visible = "◉", render = "◉", esp = "◉",
+    utilities = "⌁", wrench = "⌁", configs = "▤", folder = "▱", file = "▤", shop = "◇", cart = "◇", marketplace = "◇",
+    running = "↗", speed = "⌁", arrows = "↟", move = "↝", teleport = "↗", target = "◎", crosshair = "⊕", aim = "⊕",
+    shield = "⬡", lock = "▣", unlock = "▢", star = "✦", sparkle = "✧", favorite = "✦", crown = "♜",
+    clock = "◷", time = "◷", timer = "◷", chart = "≋", activity = "≋", cpu = "▤", monitor = "▣", gamepad = "⌑",
+    save = "↓", download = "↓", upload = "↑", refresh = "↻", server = "▣", settings = "⚙", gear = "⚙", sliders = "☷",
+    power = "◉", check = "✓", x = "×", plus = "+", minus = "−", bolt = "ϟ", fire = "♨", flame = "♨", swords = "⚔", sword = "⚔", combat = "⚔",
+    webhook = "↯", bell = "♧", info = "i", alert = "!", warning = "!", search = "⌕", copy = "▣", clipboard = "▤",
+    chevron = "›", list = "☷", palette = "◈", layers = "▥", contrast = "◐", heart = "♡", volume = "◖", camera = "▣",
+    code = "‹/›", terminal = "›_", bug = "⊗", inventory = "▤", backpack = "▱", gift = "◇", gem = "◆", coin = "◉", skull = "☠", eggs = "◉", discord = "◇", team = "♙", group = "♙",
+    sun = "☼",
 }
 
 local function copyTheme(theme)
@@ -324,6 +326,17 @@ end
 local function icon(parent, value, size, tint)
     local config = type(value) == "table" and value or nil
     local source = config and (config.Image or config.Asset or config.Id or config.Source) or value
+    local sourceText = string.lower(tostring(source or ""))
+    local semanticGlyph = ICON_FALLBACKS[sourceText]
+    -- Allow callers to request a deterministic glyph explicitly. By default,
+    -- semantic names try their mapped image asset and keep a glyph visible
+    -- until the image has loaded (or permanently if the asset is unavailable).
+    if semanticGlyph and config and config.UseImage == false then
+        local glyph = textLabel(parent, config.Fallback or semanticGlyph, config.Size or size or 18, config.Color or tint or Color3.new(1, 1, 1), true)
+        glyph.TextXAlignment = Enum.TextXAlignment.Center
+        glyph.TextYAlignment = Enum.TextYAlignment.Center
+        return glyph
+    end
     local image = imageSource(source, ACTIVE_ASSET_FOLDER)
     if image then
         local imageLabel = new("ImageLabel", {
@@ -338,10 +351,12 @@ local function icon(parent, value, size, tint)
         -- Image assets can be blocked by the current game or executor. Keep
         -- the returned ImageLabel API-compatible, but reveal a readable glyph
         -- in the same slot when Roblox raises ImageFailed.
-        local sourceText = string.lower(tostring(source or ""))
         local imageFallback = config and config.Fallback or ICON_FALLBACKS[sourceText] or (sourceText:find("logo", 1, true) and "✦") or "◇"
-        local fallbackLabel = textLabel(parent, imageFallback, size or 18, tint or Color3.new(1, 1, 1), true)
-        fallbackLabel.Visible = false
+        local fallbackLabel = textLabel(parent, imageFallback, (config and config.Size) or size or 18, (config and config.Color) or tint or Color3.new(1, 1, 1), true)
+        fallbackLabel.Name = "AxelIconFallback"
+        -- The fallback prevents a blank icon while Roblox's image pipeline is
+        -- still resolving an asset ID. ImageLoaded hides it on success.
+        fallbackLabel.Visible = true
         fallbackLabel.TextXAlignment = Enum.TextXAlignment.Center
         fallbackLabel.TextYAlignment = Enum.TextYAlignment.Center
         fallbackLabel.Position = imageLabel.Position
@@ -357,16 +372,22 @@ local function icon(parent, value, size, tint)
             imageLabel:GetPropertyChangedSignal("Position"):Connect(syncFallback)
             imageLabel:GetPropertyChangedSignal("Size"):Connect(syncFallback)
             imageLabel:GetPropertyChangedSignal("ZIndex"):Connect(syncFallback)
+            imageLabel.ImageLoaded:Connect(function()
+                if imageLabel.Parent and fallbackLabel.Parent then
+                    imageLabel.Visible = true
+                    fallbackLabel.Visible = false
+                end
+            end)
             imageLabel.ImageFailed:Connect(function()
                 imageLabel.Visible = false
                 fallbackLabel.Visible = true
             end)
+            if imageLabel.IsLoaded then fallbackLabel.Visible = false end
         end)
         return imageLabel
     end
     local fallback = config and config.Fallback
     if not fallback then
-        local sourceText = string.lower(tostring(source or ""))
         fallback = ICON_FALLBACKS[sourceText] or (sourceText:find("logo", 1, true) and "✦") or "◇"
     end
     return textLabel(parent, fallback, size or 18, tint or Color3.new(1, 1, 1), true)
@@ -469,6 +490,19 @@ function AxelUI:_makeRow(parent, data, height)
         Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, data.Primary and 0.02 or 0.04), NumberSequenceKeypoint.new(1, 0.22) }),
         Rotation = 0,
     }, row)
+    local hoverGlass = new("Frame", {
+        BackgroundColor3 = self.Theme.Accent2,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.fromScale(1, 1),
+        ZIndex = (tonumber(row.ZIndex) or 0) + 1,
+    }, row)
+    corner(hoverGlass, 8)
+    new("UIGradient", {
+        Color = ColorSequence.new(Color3.new(1, 1, 1), self.Theme.Accent2),
+        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.34), NumberSequenceKeypoint.new(1, 0.9) }),
+        Rotation = 0,
+    }, hoverGlass)
     local inner = new("Frame", {
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 1, 0),
@@ -481,23 +515,26 @@ function AxelUI:_makeRow(parent, data, height)
         elementIcon.Position = UDim2.fromOffset(3, 3)
         textOffset = 27
     end
+    local rightReserved = tonumber(data.RightReserved) or 145
     local title = textLabel(inner, data.Name or "Element", 13, data.Primary and self.Theme.Background or self.Theme.Text, true)
-    title.Size = UDim2.new(1, -145 - textOffset, 0, data.Description and 17 or 26)
+    title.Size = UDim2.new(1, -rightReserved - textOffset, 0, data.Description and 17 or 26)
     title.Position = UDim2.fromOffset(textOffset, data.Description and 0 or 0)
     if data.Description then
         local description = textLabel(inner, data.Description, 10, data.Primary and self.Theme.Background or self.Theme.SubText, false)
         description.TextWrapped = true
-        description.Size = UDim2.new(1, -145 - textOffset, 0, 16)
+        description.Size = UDim2.new(1, -rightReserved - textOffset, 0, 16)
         description.Position = UDim2.fromOffset(textOffset, 17)
     end
     pressAnimation(self, row)
     connect(self, row.MouseEnter, function()
         tween(row, { BackgroundColor3 = self.Theme.ElementHover }, 0.12)
         tween(rowStroke, { Transparency = 0.05 }, 0.12)
+        tween(hoverGlass, { BackgroundTransparency = 0.9 }, 0.12)
     end)
     connect(self, row.MouseLeave, function()
         tween(row, { BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2 }, 0.18)
         tween(rowStroke, { Transparency = 0.4 }, 0.18)
+        tween(hoverGlass, { BackgroundTransparency = 1 }, 0.18)
     end)
     self:_registerSearch(row, (data.Name or "") .. " " .. (data.Description or ""))
     return row, inner, title
@@ -512,7 +549,11 @@ function AxelUI:_setActiveTab(tab, active)
         tween(tab.TabStroke, { Transparency = active and 0.05 or 0.9, Color = active and self.Theme.Accent or self.Theme.Border }, 0.18)
     end
     setTextColor(tab.Title, color)
-    if tab.Icon then tween(tab.Icon, { ImageColor3 = color }, 0.18) end
+    if tab.Icon then
+        tween(tab.Icon, { ImageColor3 = color }, 0.18)
+        local glyph = tab.Icon.Parent and tab.Icon.Parent:FindFirstChild("AxelIconFallback")
+        if glyph then tween(glyph, { TextColor3 = color }, 0.18) end
+    end
     if tab.Indicator then
         tween(tab.Indicator, {
             BackgroundTransparency = active and 0 or 1,
@@ -621,18 +662,19 @@ function AxelUI:SetOpen(visible)
         end)
     end
     self._open = visible
+    if self.TouchButton then self.TouchButton.Visible = self.IsMobile == true or not visible end
 end
 
 function AxelUI:SetMaximized(value)
-    if self._destroyed or not self.Window or self.IsMobile then return end
+    if self._destroyed or not self.Window then return end
     value = value == true
     if value then
         self._restoreSize = self.Window.Size
-        self.Window.Size = UDim2.new(1, -32, 1, -32)
+        self._maximized = true
     else
+        self._maximized = false
         self.Window.Size = self._restoreSize or self.DesktopSize or UDim2.fromOffset(926, 616)
     end
-    self._maximized = value
     self:_applyResponsive()
 end
 
@@ -804,10 +846,14 @@ function AxelUI:_applyResponsive()
     end)
     local mobile = viewport.X <= 760 or (UserInputService.TouchEnabled and viewport.X <= 900)
     self.IsMobile = mobile
+    local desktopWidth
 
     if mobile then
-        local width = math.max(300, math.min(480, viewport.X - 18))
-        local height = math.max(360, math.min(720, viewport.Y - 26))
+        local maxWidth = math.max(300, math.min(480, viewport.X - 18))
+        local maxHeight = math.max(360, math.min(720, viewport.Y - 26))
+        local mobileSize = self.MobileSize
+        local width = self._maximized and maxWidth or (mobileSize and math.clamp(mobileSize.X.Offset, 300, maxWidth) or maxWidth)
+        local height = self._maximized and maxHeight or (mobileSize and math.clamp(mobileSize.Y.Offset, 360, maxHeight) or maxHeight)
         self.Window.Size = UDim2.fromOffset(width, height)
         self.Header.Position = UDim2.fromOffset(64, 0)
         self.Header.Size = UDim2.new(1, -64, 0, 50)
@@ -820,15 +866,19 @@ function AxelUI:_applyResponsive()
         self.ProfileCard.Visible = false
         self.Brand.Visible = false
         self.HeaderSubtitle.Visible = false
-        self.DragHandle.Visible = false
-        self.ResizeHandle.Visible = false
+        self.DragHandle.Visible = self.Draggable
+        self.DragHandle.Position = UDim2.new(1, -132, 0, 5)
+        self.DragHandle.Size = UDim2.fromOffset(24, 40)
+        self.ResizeHandle.Visible = self.Resizable and not self._maximized
+        self.ResizeHandle.Size = UDim2.fromOffset(26, 26)
         self.FpsText.Visible = false
+        self.FpsValue.Visible = false
         self.StatusSeparator.Visible = false
         self.StatusDot.Visible = false
         self.StatusText.Visible = false
         self.Search.Position = UDim2.fromOffset(8, 9)
-        self.Search.Size = UDim2.new(1, -48, 0, 32)
-        self.SearchIcon.Position = UDim2.new(1, -30, 0, 18)
+        self.Search.Size = UDim2.new(1, -146, 0, 32)
+        self.SearchIcon.Position = UDim2.fromOffset(18, 17)
         self.TabTitle.TextSize = 13
         self.TabSubtitle.Visible = false
         self.TabHeader.Size = UDim2.new(1, 0, 0, 38)
@@ -837,7 +887,21 @@ function AxelUI:_applyResponsive()
         self.NotificationHolder.Size = UDim2.fromOffset(220, 0)
         self.NotificationHolder.Position = UDim2.new(1, -10, 0, 58)
     else
-        if not self._maximized then self.Window.Size = self.DesktopSize or UDim2.fromOffset(926, 616) end
+        local maxWidth = math.max(760, math.min(1440, viewport.X - 24))
+        local maxHeight = math.max(480, math.min(1000, viewport.Y - 24))
+        if self._maximized then
+            desktopWidth = math.max(1, viewport.X - 32)
+            self.Window.Size = UDim2.new(1, -32, 1, -32)
+        else
+            local desired = self.DesktopSize or UDim2.fromOffset(926, 616)
+            local desiredWidth = desired.X.Scale == 0 and desired.X.Offset or self.Window.AbsoluteSize.X
+            local desiredHeight = desired.Y.Scale == 0 and desired.Y.Offset or self.Window.AbsoluteSize.Y
+            desktopWidth = math.clamp(desiredWidth, math.min(760, maxWidth), maxWidth)
+            self.Window.Size = UDim2.fromOffset(
+                desktopWidth,
+                math.clamp(desiredHeight, math.min(480, maxHeight), maxHeight)
+            )
+        end
         self.Header.Position = UDim2.fromOffset(170, 0)
         self.Header.Size = UDim2.new(1, -170, 0, 58)
         self.Sidebar.Position = UDim2.fromOffset(0, 0)
@@ -850,19 +914,23 @@ function AxelUI:_applyResponsive()
         self.Brand.Visible = true
         self.HeaderSubtitle.Visible = true
         self.DragHandle.Visible = self.Draggable
+        self.DragHandle.Position = UDim2.fromOffset(404, 0)
+        self.DragHandle.Size = UDim2.new(1, -536, 1, 0)
         self.ResizeHandle.Visible = self.Resizable and not self._maximized
+        self.ResizeHandle.Size = UDim2.fromOffset(18, 18)
         self.FpsText.Visible = true
+        self.FpsValue.Visible = true
         self.StatusSeparator.Visible = true
         self.StatusDot.Visible = true
         self.StatusText.Visible = true
         self.Search.Position = UDim2.fromOffset(20, 14)
-        self.Search.Size = UDim2.fromOffset(374, 34)
-        self.SearchIcon.Position = UDim2.fromOffset(368, 23)
+        self.Search.Size = UDim2.fromOffset(math.min(374, math.max(160, (desktopWidth or self.Window.AbsoluteSize.X) - 526)), 34)
+        self.SearchIcon.Position = UDim2.fromOffset(31, 23)
         self.TabTitle.TextSize = 15
         self.TabSubtitle.Visible = true
         self.TabHeader.Size = UDim2.new(1, 0, 0, 46)
         self.TabTitle.Position = UDim2.fromOffset(18, 5)
-        self.TouchButton.Visible = false
+        self.TouchButton.Visible = not self._open
         self.NotificationHolder.Size = UDim2.fromOffset(300, 0)
         self.NotificationHolder.Position = UDim2.new(1, -18, 0, 62)
     end
@@ -932,8 +1000,18 @@ end
 function AxelUI:SetFont(font)
     self._font = font
     ACTIVE_FONT = font
-    -- Existing elements inherit a normal Gotham fallback. New controls use the
-    -- requested font. This keeps the method safe even on old executors.
+    if self.Gui then
+        for _, object in ipairs(self.Gui:GetDescendants()) do
+            if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+                pcall(function()
+                    local weight = object.FontFace and object.FontFace.Weight
+                    local bold = weight and weight.Value >= Enum.FontWeight.SemiBold.Value or false
+                    object.FontFace = fontFace(font, bold)
+                end)
+            end
+        end
+    end
+    return self
 end
 
 local function preserveHeight(instance, height)
@@ -1192,18 +1270,20 @@ function AxelUI.TabMethods:AddHero(data)
     local picture = new("ImageLabel", { BackgroundTransparency = 1, Image = source or "", ImageTransparency = tonumber(data.ImageTransparency) or 0.08, ScaleType = data.ScaleType or Enum.ScaleType.Crop, Size = UDim2.fromScale(1, 1), ZIndex = 4 }, banner)
     local shade = new("Frame", { BackgroundColor3 = self.Window.Theme.Background, BackgroundTransparency = source and 0.28 or 0.04, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 5 }, banner)
     new("UIGradient", { Color = ColorSequence.new(self.Window.Theme.Background, self.Window.Theme.Element), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.04), NumberSequenceKeypoint.new(0.58, 0.22), NumberSequenceKeypoint.new(1, 0.78) }), Rotation = 0 }, shade)
+    local bannerTextZ = math.max(tonumber(picture.ZIndex) or 0, tonumber(shade.ZIndex) or 0) + 2
     local fallback = textLabel(banner, data.FallbackText or "AXEL HUB", 11, source and self.Window.Theme.Muted or self.Window.Theme.Accent2, true)
-    fallback.AnchorPoint = Vector2.new(0.5, 0.5); fallback.Position = UDim2.fromScale(0.72, 0.5); fallback.Size = UDim2.fromOffset(150, 18); fallback.TextXAlignment = Enum.TextXAlignment.Center; fallback.Visible = source == nil; fallback.ZIndex = 6
+    fallback.AnchorPoint = Vector2.new(0.5, 0.5); fallback.Position = UDim2.fromScale(0.72, 0.5); fallback.Size = UDim2.fromOffset(150, 18); fallback.TextXAlignment = Enum.TextXAlignment.Center; fallback.Visible = source == nil; fallback.ZIndex = bannerTextZ
     pcall(function()
         connect(self.Window, picture.ImageFailed, function() picture.Visible = false; shade.BackgroundTransparency = 0.04; fallback.Visible = true end)
     end)
     local title = textLabel(banner, data.BannerTitle or data.Title or "Customize your experience", 14, self.Window.Theme.Text, true)
-    title.Position = UDim2.fromOffset(14, 13); title.Size = UDim2.new(0.62, 0, 0, 22); title.ZIndex = 7
+    title.Position = UDim2.fromOffset(14, 13); title.Size = UDim2.new(0.62, 0, 0, 22); title.ZIndex = bannerTextZ
     local content = textLabel(banner, data.Content or data.Description or "Simple. Powerful. Yours.", 10, self.Window.Theme.SubText, false)
-    content.Position = UDim2.fromOffset(14, 38); content.Size = UDim2.new(0.58, 0, 0, 26); content.TextWrapped = true; content.ZIndex = 7
+    content.Position = UDim2.fromOffset(14, 38); content.Size = UDim2.new(0.58, 0, 0, 26); content.TextWrapped = true; content.ZIndex = bannerTextZ
     local action
     if data.Button or data.ActionText then
         action = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Accent, BorderSizePixel = 0, Text = tostring(data.Button or data.ActionText), TextColor3 = self.Window.Theme.Background, TextSize = 10, FontFace = fontFace(nil, true), Size = UDim2.fromOffset(92, 27), Position = UDim2.fromOffset(14, math.max(62, height - 39)), ZIndex = 7 }, banner)
+        action.ZIndex = bannerTextZ + 1
         corner(action, 8); pressAnimation(self.Window, action)
         connect(self.Window, action.MouseButton1Click, function() if type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback) end) end end)
     end
@@ -1239,6 +1319,7 @@ function AxelUI.TabMethods:SelectPill(pill)
         local active = other == pill
         other.Active = active
         tween(other.Button, { BackgroundColor3 = active and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
+        if other.Stroke then tween(other.Stroke, { Transparency = active and 0.02 or 0.72, Color = active and self.Window.Theme.Accent2 or self.Window.Theme.Border }, 0.16) end
         setTextColor(other.Title, active and self.Window.Theme.Background or self.Window.Theme.SubText)
     end
     self.ActivePill = pill
@@ -1279,11 +1360,18 @@ function AxelUI.TabMethods:AddPill(data)
         Size = UDim2.fromOffset(buttonWidth, 28),
         ZIndex = 4,
     }, self.PillBar)
-    corner(button, 14); stroke(button, self.Window.Theme.Border, 0.18, 1)
+    corner(button, 14)
+    local pillStroke = stroke(button, self.Window.Theme.Border, 0.72, 1)
     local title = button
-    local pill = { Tab = self, Button = button, Title = title, Name = name, Callback = data.Callback or data.callback, Active = false }
+    local pill = { Tab = self, Button = button, Title = title, Stroke = pillStroke, Name = name, Callback = data.Callback or data.callback, Active = false }
     table.insert(self.Pills, pill)
     connect(self.Window, button.MouseButton1Click, function() self:SelectPill(pill) end)
+    connect(self.Window, button.MouseEnter, function()
+        if not pill.Active then tween(pillStroke, { Transparency = 0.22, Color = self.Window.Theme.Accent2 }, 0.13) end
+    end)
+    connect(self.Window, button.MouseLeave, function()
+        if not pill.Active then tween(pillStroke, { Transparency = 0.72, Color = self.Window.Theme.Border }, 0.16) end
+    end)
     pressAnimation(self.Window, button)
     if #self.Pills == 1 or data.Active then self:SelectPill(pill) end
     self:LayoutPills()
@@ -1564,7 +1652,7 @@ function AxelUI.SectionMethods:AddBanner(data)
     fallback.Position = UDim2.fromScale(0.5, 0.72)
     fallback.Size = UDim2.new(1, -28, 0, 18)
     fallback.TextXAlignment = Enum.TextXAlignment.Center
-    fallback.ZIndex = 3
+    fallback.ZIndex = (tonumber(shade.ZIndex) or tonumber(picture.ZIndex) or 0) + 2
     fallback.Visible = source == nil
     pcall(function()
         connect(self.Window, picture.ImageFailed, function()
@@ -1574,9 +1662,10 @@ function AxelUI.SectionMethods:AddBanner(data)
         end)
     end)
     local title = textLabel(holder, data.Title or data.Name or "Welcome", 14, self.Window.Theme.Text, true)
-    title.Position = UDim2.fromOffset(14, 14); title.Size = UDim2.new(1, -28, 0, 22); title.ZIndex = 4
+    local bannerTextZ = math.max(tonumber(picture.ZIndex) or 0, tonumber(shade.ZIndex) or 0) + 2
+    title.Position = UDim2.fromOffset(14, 14); title.Size = UDim2.new(1, -28, 0, 22); title.ZIndex = bannerTextZ
     local content = textLabel(holder, data.Content or data.Description or "", 10, self.Window.Theme.SubText, false)
-    content.Position = UDim2.fromOffset(14, 39); content.Size = UDim2.new(1, -170, 0, 34); content.TextWrapped = true; content.ZIndex = 4
+    content.Position = UDim2.fromOffset(14, 39); content.Size = UDim2.new(1, -170, 0, 34); content.TextWrapped = true; content.ZIndex = bannerTextZ
     local action
     if data.Button or data.ActionText then
         action = new("TextButton", {
@@ -1591,6 +1680,7 @@ function AxelUI.SectionMethods:AddBanner(data)
             Position = UDim2.new(1, -126, 0.5, -14),
             ZIndex = 4,
         }, holder)
+        action.ZIndex = bannerTextZ + 1
         corner(action, 7); pressAnimation(self.Window, action)
         connect(self.Window, action.MouseButton1Click, function()
             if type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback) end) end
@@ -1649,6 +1739,7 @@ end
 function AxelUI.SectionMethods:AddButton(data)
     data = data or {}
     data.Icon = data.Icon or "check"
+    data.RightReserved = data.RightReserved or 48
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 38)
     local buttonIcon = icon(inner, data.Icon or "check", 16, data.IconColor or self.Window.Theme.Accent2)
     buttonIcon.Position = UDim2.new(1, -30, 0.5, -8)
@@ -1692,8 +1783,17 @@ function AxelUI.SectionMethods:AddActionBar(data)
             FontFace = fontFace(nil, item.Bold ~= false),
             Size = UDim2.new(1 / count, -((tonumber(data.Gap) or 6) * (count - 1) / count), 0, tonumber(data.Height) or 32),
         }, bar)
-        corner(button, 8); stroke(button, item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Border, 0.24, 1)
+        corner(button, 8)
+        local actionStroke = stroke(button, item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Border, 0.24, 1)
         pressAnimation(self.Window, button)
+        connect(self.Window, button.MouseEnter, function()
+            tween(button, { BackgroundColor3 = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.ElementHover }, 0.12)
+            tween(actionStroke, { Transparency = 0.02, Color = self.Window.Theme.Accent2 }, 0.12)
+        end)
+        connect(self.Window, button.MouseLeave, function()
+            tween(button, { BackgroundColor3 = item.Primary and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
+            tween(actionStroke, { Transparency = 0.24, Color = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Border }, 0.16)
+        end)
         connect(self.Window, button.MouseButton1Click, function()
             if type(item.Callback or item.callback) == "function" then task.spawn(function() pcall(item.Callback or item.callback) end) end
         end)
@@ -1706,22 +1806,25 @@ end
 function AxelUI.SectionMethods:AddToggle(data)
     data = data or {}
     data.Icon = data.Icon or "power"
+    data.RightReserved = data.RightReserved or 68
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local track = new("Frame", {
         BackgroundColor3 = self.Window.Theme.Element,
-        Size = UDim2.fromOffset(40, 20),
-        Position = UDim2.new(1, -50, 0.5, -10),
+        Size = UDim2.fromOffset(42, 22),
+        Position = UDim2.new(1, -52, 0.5, -11),
         ZIndex = 8,
     }, inner)
-    corner(track, 10)
-    local knob = new("Frame", { BackgroundColor3 = self.Window.Theme.Muted, Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(3, 3), ZIndex = 9 }, track)
-    corner(knob, 7)
-    local handle = { Value = data.Default == true, Row = row }
+    corner(track, 11)
+    local trackStroke = stroke(track, self.Window.Theme.Border, 0.28, 1)
+    local knob = new("Frame", { BackgroundColor3 = self.Window.Theme.Text, Size = UDim2.fromOffset(16, 16), Position = UDim2.fromOffset(3, 3), ZIndex = 9 }, track)
+    corner(knob, 8)
+    local handle = { Value = data.Default == true, Row = row, Window = self.Window }
     function handle:Set(value, silent)
         self.Value = value == true
         local x = self.Value and 23 or 3
-        tween(knob, { Position = UDim2.fromOffset(x, 3), BackgroundColor3 = self.Value and self.Window.Theme.Background or self.Window.Theme.Muted }, 0.16)
+        tween(knob, { Position = UDim2.fromOffset(x, 3), BackgroundColor3 = self.Window.Theme.Text }, 0.16)
         tween(track, { BackgroundColor3 = self.Value and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
+        tween(trackStroke, { Color = self.Value and self.Window.Theme.Accent2 or self.Window.Theme.Border, Transparency = self.Value and 0.12 or 0.28 }, 0.16)
         if not silent and type(data.Callback or data.callback) == "function" then
             task.spawn(function() pcall(data.Callback or data.callback, self.Value) end)
         end
@@ -1737,18 +1840,37 @@ end
 function AxelUI.SectionMethods:AddSlider(data)
     data = data or {}
     data.Icon = data.Icon or "chart"
-    local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 46)
+    data.RightReserved = data.RightReserved or 145
+    local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local minimum, maximum = tonumber(data.Min or data.Minimum) or 0, tonumber(data.Max or data.Maximum) or 100
     local value = math.clamp(tonumber(data.Default) or minimum, minimum, maximum)
     local valueText = textLabel(inner, "", 10, self.Window.Theme.Accent2, true)
-    valueText.Size = UDim2.fromOffset(100, 18)
-    valueText.Position = UDim2.new(1, -108, 0, 0)
+    valueText.Size = UDim2.fromOffset(30, 18)
+    valueText.Position = UDim2.new(1, -145, 0.5, -9)
     valueText.TextXAlignment = Enum.TextXAlignment.Right
     valueText.ZIndex = 8
-    local bar = new("Frame", { BackgroundColor3 = self.Window.Theme.Element, Size = UDim2.new(1, -8, 0, 5), Position = UDim2.new(0, 0, 1, -11), ZIndex = 8 }, inner)
+    local bar = new("Frame", { BackgroundColor3 = self.Window.Theme.Element, Size = UDim2.fromOffset(92, 5), Position = UDim2.new(1, -106, 0.5, -2), ZIndex = 8 }, inner)
     corner(bar, 4)
     local fill = new("Frame", { BackgroundColor3 = self.Window.Theme.Accent, Size = UDim2.new(0, 0, 1, 0), ZIndex = 9 }, bar)
     corner(fill, 4)
+    local thumb = new("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = self.Window.Theme.Accent2,
+        Position = UDim2.new(0, 0, 0.5, 0),
+        Size = UDim2.fromOffset(14, 14),
+        ZIndex = 10,
+    }, bar)
+    corner(thumb, 7); stroke(thumb, self.Window.Theme.Background, 0.12, 1)
+    local dragArea = new("TextButton", {
+        Active = true,
+        AutoButtonColor = false,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Text = "",
+        Position = UDim2.new(1, -112, 0.5, -10),
+        Size = UDim2.fromOffset(108, 20),
+        ZIndex = 30,
+    }, inner)
     local handle = { Value = value, Row = row }
     local function setFromX(x, silent)
         local ratio = math.clamp((x - bar.AbsolutePosition.X) / math.max(1, bar.AbsoluteSize.X), 0, 1)
@@ -1759,6 +1881,7 @@ function AxelUI.SectionMethods:AddSlider(data)
         handle.Value = nextValue
         valueText.Text = tostring(nextValue) .. tostring(data.Suffix or "")
         fill.Size = UDim2.new(ratio, 0, 1, 0)
+        thumb.Position = UDim2.new(ratio, 0, 0.5, 0)
         if not silent and type(data.Callback or data.callback) == "function" then
             task.spawn(function() pcall(data.Callback or data.callback, nextValue) end)
         end
@@ -1769,13 +1892,14 @@ function AxelUI.SectionMethods:AddSlider(data)
         handle.Value = nextValue
         valueText.Text = tostring(nextValue) .. tostring(data.Suffix or "")
         fill.Size = UDim2.new(ratio, 0, 1, 0)
+        thumb.Position = UDim2.new(ratio, 0, 0.5, 0)
         if not silent and type(data.Callback or data.callback) == "function" then
             task.spawn(function() pcall(data.Callback or data.callback, nextValue) end)
         end
     end
     function handle:Get() return handle.Value end
     local sliding = false
-    connect(self.Window, bar.InputBegan, function(input)
+    connect(self.Window, dragArea.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             sliding = true
             setFromX(input.Position.X)
@@ -1796,6 +1920,7 @@ end
 function AxelUI.SectionMethods:AddDropdown(data)
     data = data or {}
     data.Icon = data.Icon or "chevron"
+    data.RightReserved = data.RightReserved or 165
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local selected = data.Default
     local selector = new("TextButton", {
@@ -1848,6 +1973,7 @@ end
 function AxelUI.SectionMethods:AddMultiDropdown(data)
     data = data or {}
     data.Icon = data.Icon or "chevron"
+    data.RightReserved = data.RightReserved or 175
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local options = data.Options or data.Items or {}
     local selected = {}
@@ -1977,6 +2103,7 @@ end
 function AxelUI.SectionMethods:AddColorPicker(data)
     data = data or {}
     data.Icon = data.Icon or "chart"
+    data.RightReserved = data.RightReserved or 54
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local initial = typeof(data.Default) == "Color3" and data.Default or self.Window.Theme.Accent
     local swatch = new("TextButton", {
@@ -2043,6 +2170,7 @@ AxelUI.SectionMethods.AddColorpicker = AxelUI.SectionMethods.AddColorPicker
 function AxelUI.SectionMethods:AddInput(data)
     data = data or {}
     data.Icon = data.Icon or "search"
+    data.RightReserved = data.RightReserved or 170
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 42)
     local box = new("TextBox", { BackgroundColor3 = self.Window.Theme.Element, BorderSizePixel = 0, ClearTextOnFocus = false, PlaceholderText = tostring(data.Placeholder or "Input"), PlaceholderColor3 = self.Window.Theme.Muted, Text = tostring(data.Default or ""), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(160, 25), Position = UDim2.new(1, -170, 0.5, -12), ZIndex = 8 }, inner)
     corner(box, 5); pad(box, 8, 8, 0, 0)
@@ -2063,6 +2191,7 @@ AxelUI.SectionMethods.AddTextbox = AxelUI.SectionMethods.AddInput
 function AxelUI.SectionMethods:AddKeybind(data)
     data = data or {}
     data.Icon = data.Icon or "settings"
+    data.RightReserved = data.RightReserved or 110
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local initialKey = keyName(data.Default or "None")
     local keyButton = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Element, BorderSizePixel = 0, Text = initialKey, TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(100, 25), Position = UDim2.new(1, -110, 0.5, -12), ZIndex = 8 }, inner)
@@ -2098,6 +2227,7 @@ end
 function AxelUI.SectionMethods:AddStatus(data)
     data = data or {}
     data.Icon = data.Icon or "check"
+    data.RightReserved = data.RightReserved or 180
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 34)
     local status = textLabel(inner, data.Text or data.Status or "Ready", 11, data.Color or self.Window.Theme.Success, true)
     status.Size = UDim2.new(0, 180, 0, 24)
@@ -2271,6 +2401,7 @@ function AxelUI.new(options)
         _font = options.Font,
         ToggleKeybind = options.ToggleKeybind or Enum.KeyCode.RightControl,
         DesktopSize = options.Size or UDim2.fromOffset(926, 616),
+        MobileSize = nil,
         AssetFolder = options.AssetFolder or options.AssetRoot or "",
         ConfigFolder = options.ConfigFolder or "AxelUIConfigs",
         Draggable = options.Draggable ~= false,
@@ -2285,8 +2416,10 @@ function AxelUI.new(options)
     AxelUI._activeWindow = self
 
     self.Window = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = self.DesktopSize, ClipsDescendants = true }, self.Gui)
-    corner(self.Window, 12)
+    corner(self.Window, 15)
     self.GlowStroke = stroke(self.Window, self.Theme.Accent, 0.42, 1.25)
+    connect(self, self.Window.MouseEnter, function() tween(self.GlowStroke, { Transparency = 0.08, Thickness = 1.6 }, 0.18) end)
+    connect(self, self.Window.MouseLeave, function() tween(self.GlowStroke, { Transparency = 0.42, Thickness = 1.25 }, 0.2) end)
     new("UIGradient", {
         Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, self.Theme.Background),
@@ -2307,6 +2440,9 @@ function AxelUI.new(options)
 
     local header = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 0), Size = UDim2.new(1, -170, 0, 58), ZIndex = 5 }, self.Window)
     self.Header = header
+    corner(header, 15)
+    new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -12), Size = UDim2.fromOffset(12, 12), ZIndex = 6 }, header)
+    new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -12, 1, -12), Size = UDim2.fromOffset(12, 12), ZIndex = 6 }, header)
     new("UIGradient", {
         Color = ColorSequence.new(self.Theme.Surface, self.Theme.Background),
         Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.2) }),
@@ -2324,15 +2460,16 @@ function AxelUI.new(options)
     }, header)
     self.DragHandle = dragHandle
     local logoHolder = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.fromOffset(36, 36), Position = UDim2.fromOffset(16, 15) }, header)
-    corner(logoHolder, 8); local logoIcon = icon(logoHolder, options.Logo or "dashboard", 20, self.Theme.Accent2); logoIcon.Position = UDim2.fromOffset(6, 6)
+    corner(logoHolder, 10); local logoIcon = icon(logoHolder, { Image = options.Logo or "dashboard", Fallback = "✦", Size = 38, ScaleType = Enum.ScaleType.Crop }, 38, self.Theme.Accent2); logoIcon.Position = UDim2.fromOffset(0, 0); logoIcon.Size = UDim2.fromOffset(38, 38)
     local brand = textLabel(header, options.Name or "Axel UI", 14, self.Theme.Text, true); brand.Position = UDim2.fromOffset(58, 15); brand.Size = UDim2.fromOffset(150, 20)
     local subtitle = textLabel(header, options.Subtitle or "Clean, animated interface", 10, self.Theme.SubText, false); subtitle.Position = UDim2.fromOffset(58, 35); subtitle.Size = UDim2.fromOffset(180, 16)
     self.Brand, self.HeaderSubtitle = brand, subtitle
     local search = new("TextBox", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, ClearTextOnFocus = false, PlaceholderText = "Search features, settings, or help...", PlaceholderColor3 = self.Theme.Muted, Text = "", TextColor3 = self.Theme.Text, TextSize = 12, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(300, 34), Position = UDim2.fromOffset(16, 12) }, header)
-    corner(search, 8); stroke(search, self.Theme.Border, 0.25, 1); pad(search, 10, 34, 0, 0)
-    self.SearchIcon = icon(header, "search", 15, self.Theme.Muted); self.SearchIcon.Position = UDim2.fromOffset(292, 21)
+    corner(search, 9); stroke(search, self.Theme.Border, 0.25, 1); pad(search, 34, 10, 0, 0)
+    self.SearchIcon = icon(header, "search", 15, self.Theme.Muted); self.SearchIcon.Position = UDim2.fromOffset(31, 23)
     self.Search = search
-    self.FpsText = textLabel(header, "FPS --", 10, self.Theme.SubText, true); self.FpsText.Position = UDim2.new(1, -276, 0, 14); self.FpsText.Size = UDim2.fromOffset(62, 20); self.FpsText.TextXAlignment = Enum.TextXAlignment.Right
+    self.FpsText = textLabel(header, "FPS", 10, self.Theme.SubText, true); self.FpsText.Position = UDim2.new(1, -276, 0, 14); self.FpsText.Size = UDim2.fromOffset(29, 20); self.FpsText.TextXAlignment = Enum.TextXAlignment.Right
+    self.FpsValue = textLabel(header, "--", 10, self.Theme.Accent2, true); self.FpsValue.Position = UDim2.new(1, -244, 0, 14); self.FpsValue.Size = UDim2.fromOffset(30, 20); self.FpsValue.TextXAlignment = Enum.TextXAlignment.Left
     self.StatusSeparator = textLabel(header, "|", 10, self.Theme.Muted, false); self.StatusSeparator.Position = UDim2.new(1, -211, 0, 14); self.StatusSeparator.Size = UDim2.fromOffset(8, 20); self.StatusSeparator.TextXAlignment = Enum.TextXAlignment.Center
     self.StatusDot = new("Frame", { BackgroundColor3 = self.Theme.Success, BorderSizePixel = 0, Size = UDim2.fromOffset(7, 7), Position = UDim2.new(1, -190, 0, 21) }, header); corner(self.StatusDot, 4)
     self.StatusText = textLabel(header, "Online", 10, self.Theme.Success, true); self.StatusText.Position = UDim2.new(1, -176, 0, 14); self.StatusText.Size = UDim2.fromOffset(60, 20); self.StatusText.TextXAlignment = Enum.TextXAlignment.Left
@@ -2377,7 +2514,7 @@ function AxelUI.new(options)
     self.ResizeHandle = resizeHandle
     resizeHandle.Visible = self.Resizable
     connect(self, resizeHandle.InputBegan, function(input)
-        if not self.Resizable or self.IsMobile or self._maximized then return end
+        if not self.Resizable or self._maximized then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             self._resizing = true
             self._resizeStart = input.Position
@@ -2385,7 +2522,7 @@ function AxelUI.new(options)
         end
     end)
     connect(self, dragHandle.InputBegan, function(input)
-        if not self.Draggable or self.IsMobile then return end
+        if not self.Draggable then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             self._dragging = true
             self._dragStart = input.Position
@@ -2395,6 +2532,9 @@ function AxelUI.new(options)
 
     local sidebar = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.new(0, 170, 1, 0), ZIndex = 6 }, self.Window)
     self.Sidebar = sidebar
+    corner(sidebar, 15)
+    self.SidebarRightTopCap = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -15, 0, 0), Size = UDim2.fromOffset(15, 15), ZIndex = 7 }, sidebar)
+    self.SidebarRightBottomCap = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -15, 1, -15), Size = UDim2.fromOffset(15, 15), ZIndex = 7 }, sidebar)
     new("Frame", { BackgroundColor3 = self.Theme.Border, BackgroundTransparency = 0.25, BorderSizePixel = 0, Position = UDim2.new(1, -1, 0, 0), Size = UDim2.new(0, 1, 1, 0), ZIndex = 7 }, sidebar)
     logoHolder.Parent = sidebar; logoHolder.Position = UDim2.fromOffset(18, 16); logoHolder.Size = UDim2.fromOffset(38, 38); logoHolder.ZIndex = 8; logoIcon.ZIndex = 9
     brand.Parent = sidebar; brand.Position = UDim2.fromOffset(66, 15); brand.Size = UDim2.new(1, -78, 0, 20); brand.ZIndex = 8
@@ -2404,21 +2544,34 @@ function AxelUI.new(options)
     self.NavTitle = navTitle
     self.TabList = new("ScrollingFrame", { Active = true, AutomaticCanvasSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), Position = UDim2.fromOffset(8, 108), ScrollBarImageColor3 = self.Theme.Accent, ScrollBarThickness = 2, Size = UDim2.new(1, -16, 1, -188) }, sidebar)
     new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, self.TabList)
-    local profile = new("Frame", { BackgroundColor3 = self.Theme.Element, BackgroundTransparency = 0.15, BorderSizePixel = 0, Position = UDim2.new(0, 12, 1, -104), Size = UDim2.new(1, -24, 0, 48) }, sidebar)
+    local profile = new("Frame", { BackgroundColor3 = self.Theme.Element, BackgroundTransparency = 0.15, BorderSizePixel = 0, Position = UDim2.new(0, 12, 1, -112), Size = UDim2.new(1, -24, 0, 52) }, sidebar)
     corner(profile, 10); stroke(profile, self.Theme.Border, 0.55, 1)
     local avatar = new("ImageLabel", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Size = UDim2.fromOffset(30, 30), Position = UDim2.fromOffset(8, 9), Image = "", ScaleType = Enum.ScaleType.Crop }, profile)
     corner(avatar, 15)
+    local avatarFallback = textLabel(profile, "♙", 17, self.Theme.SubText, true)
+    avatarFallback.Position = avatar.Position; avatarFallback.Size = avatar.Size; avatarFallback.ZIndex = avatar.ZIndex + 1
     pcall(function()
         local player = Players.LocalPlayer
         if player then avatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100) end
     end)
-    local profileName = textLabel(profile, Players.LocalPlayer and Players.LocalPlayer.DisplayName or "Axel User", 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 7); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
-    local profileState = textLabel(profile, "Ready to play", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 25); profileState.Size = UDim2.new(1, -54, 0, 14)
-    local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -58); footer.Size = UDim2.new(1, -28, 0, 42); footer.TextWrapped = true; footer.TextYAlignment = Enum.TextYAlignment.Top
+    pcall(function()
+        avatar.ImageLoaded:Connect(function() avatarFallback.Visible = false end)
+        avatar.ImageFailed:Connect(function() avatar.Visible = false; avatarFallback.Visible = true end)
+        if avatar.IsLoaded then avatarFallback.Visible = false end
+    end)
+    local profileName = textLabel(profile, Players.LocalPlayer and Players.LocalPlayer.DisplayName or "Axel User", 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 8); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
+    local profileState = textLabel(profile, "Ready to play", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 27); profileState.Size = UDim2.new(1, -54, 0, 14)
+    local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -50); footer.Size = UDim2.new(1, -28, 0, 40); footer.TextWrapped = true; footer.TextYAlignment = Enum.TextYAlignment.Top
     self.ProfileCard, self.ProfileAvatar, self.ProfileName = profile, avatar, profileName
     self.Footer = footer
 
     self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 58), Size = UDim2.new(1, -170, 1, -58), ZIndex = 1 }, self.Window)
+    corner(self.PageHolder, 15)
+    self.PageCornerCaps = {
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(15, 15), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.new(1, -15, 0, 0), Size = UDim2.fromOffset(15, 15), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -15), Size = UDim2.fromOffset(15, 15), ZIndex = 2 }, self.PageHolder),
+    }
     local tabHeader = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 46) }, self.PageHolder)
     self.TabHeader = tabHeader
     self.TabTitle = textLabel(tabHeader, "Dashboard", 15, self.Theme.Text, true); self.TabTitle.Position = UDim2.fromOffset(18, 5); self.TabTitle.Size = UDim2.new(1, -32, 0, 19)
@@ -2467,7 +2620,7 @@ function AxelUI.new(options)
             local fps = math.floor(self._fpsFrames / elapsed + 0.5)
             self._fpsFrames = 0
             self._fpsLastSample = now
-            if self.FpsText then self.FpsText.Text = "FPS " .. tostring(fps) end
+            if self.FpsValue then self.FpsValue.Text = tostring(fps) end
         end
     end)
     connect(self, UserInputService.InputEnded, function(input)
@@ -2484,12 +2637,18 @@ function AxelUI.new(options)
         elseif self._resizing and self._resizeStart and self._resizeSize then
             local delta = input.Position - self._resizeStart
             local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-            local maxWidth = math.max(760, math.min(1440, viewport.X - 24))
-            local maxHeight = math.max(480, math.min(1000, viewport.Y - 24))
-            local width = math.clamp(self._resizeSize.X + delta.X, math.min(760, maxWidth), maxWidth)
-            local height = math.clamp(self._resizeSize.Y + delta.Y, math.min(480, maxHeight), maxHeight)
+            local minWidth = self.IsMobile and 300 or 760
+            local minHeight = self.IsMobile and 360 or 480
+            local maxWidth = self.IsMobile and math.max(minWidth, math.min(480, viewport.X - 18)) or math.max(minWidth, math.min(1440, viewport.X - 24))
+            local maxHeight = self.IsMobile and math.max(minHeight, math.min(720, viewport.Y - 26)) or math.max(minHeight, math.min(1000, viewport.Y - 24))
+            local width = math.clamp(self._resizeSize.X + delta.X, math.min(minWidth, maxWidth), maxWidth)
+            local height = math.clamp(self._resizeSize.Y + delta.Y, math.min(minHeight, maxHeight), maxHeight)
             self.Window.Size = UDim2.fromOffset(width, height)
-            self.DesktopSize = self.Window.Size
+            if self.IsMobile then
+                self.MobileSize = self.Window.Size
+            else
+                self.DesktopSize = self.Window.Size
+            end
         end
     end)
     pcall(function()
@@ -2504,7 +2663,7 @@ function AxelUI.new(options)
     corner(loaderCard, 12); stroke(loaderCard, self.Theme.Accent, 0.42, 1)
     new("UIGradient", { Color = ColorSequence.new(self.Theme.Surface, self.Theme.Background), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.12) }), Rotation = 35 }, loaderCard)
     local loaderScale = new("UIScale", { Scale = 0.78 }, loaderCard)
-    local overlayIcon = icon(loaderCard, options.Logo or "dashboard", 42, self.Theme.Accent2); overlayIcon.Position = UDim2.fromOffset(22, 23); overlayIcon.ZIndex = 102
+    local overlayIcon = icon(loaderCard, { Image = options.Logo or "dashboard", Fallback = "✦", Size = 42 }, 42, self.Theme.Accent2); overlayIcon.Position = UDim2.fromOffset(22, 23); overlayIcon.ZIndex = 102
     local loadingTitle = textLabel(loaderCard, options.LoadingText or options.Name or "Axel Hub", 16, self.Theme.Text, true); loadingTitle.Position = UDim2.fromOffset(78, 20); loadingTitle.Size = UDim2.new(1, -96, 0, 24); loadingTitle.ZIndex = 102
     local loadingText = textLabel(loaderCard, options.LoadingSubtitle or "Preparing your workspace", 10, self.Theme.SubText, false); loadingText.Position = UDim2.fromOffset(78, 46); loadingText.Size = UDim2.new(1, -96, 0, 18); loadingText.ZIndex = 102
     local loadingBar = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.new(1, -44, 0, 5), Position = UDim2.fromOffset(22, 104), ZIndex = 102 }, loaderCard); corner(loadingBar, 4)
@@ -2543,7 +2702,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 5.9
+AxelUI.Version = 6.0
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
