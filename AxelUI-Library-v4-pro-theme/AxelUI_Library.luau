@@ -158,21 +158,22 @@ local ICONS = {
     sun = "10734924532",
 }
 
--- Deterministic text glyphs keep semantic icons readable when an executor cannot
--- load a Roblox image asset. They are deliberately neutral symbols, not emoji.
-local ICON_FALLBACKS = {
-    dashboard = "▦", grid = "▦", home = "⌂", player = "♙", person = "♙", user = "♙", users = "♙",
-    world = "◇", globe = "◎", map = "⌖", compass = "⊙", eye = "◉", eyeoff = "⊘", visible = "◉", render = "◉", esp = "◉",
-    utilities = "⌁", wrench = "⌁", configs = "▤", folder = "▱", file = "▤", shop = "◇", cart = "◇", marketplace = "◇",
-    running = "↗", speed = "⌁", arrows = "↟", move = "↝", teleport = "↗", target = "◎", crosshair = "⊕", aim = "⊕",
-    shield = "⬡", lock = "▣", unlock = "▢", star = "✦", sparkle = "✧", favorite = "✦", crown = "♜",
-    clock = "◷", time = "◷", timer = "◷", chart = "≋", activity = "≋", cpu = "▤", monitor = "▣", gamepad = "⌑",
-    save = "↓", download = "↓", upload = "↑", refresh = "↻", server = "▣", settings = "⚙", gear = "⚙", sliders = "☷",
-    power = "◉", check = "✓", x = "×", plus = "+", minus = "−", bolt = "ϟ", fire = "♨", flame = "♨", swords = "⚔", sword = "⚔", combat = "⚔",
-    webhook = "↯", bell = "♧", info = "i", alert = "!", warning = "!", search = "⌕", copy = "▣", clipboard = "▤",
-    chevron = "›", list = "☷", palette = "◈", layers = "▥", contrast = "◐", heart = "♡", volume = "◖", camera = "▣",
-    code = "‹/›", terminal = "›_", bug = "⊗", inventory = "▤", backpack = "▱", gift = "◇", gem = "◆", coin = "◉", skull = "☠", eggs = "◉", discord = "◇", team = "♙", group = "♙",
-    sun = "☼",
+-- Semantic icon names are rendered with local vector primitives below. This
+-- avoids missing-font tofu squares and makes built-in icons independent of
+-- Roblox asset permissions. The values are retained as aliases for old scripts.
+local BUILTIN_ICONS = {
+    dashboard = true, grid = true, home = true, player = true, person = true, user = true, users = true,
+    world = true, globe = true, map = true, compass = true, eye = true, eyeoff = true, visible = true, render = true, esp = true,
+    utilities = true, wrench = true, configs = true, folder = true, file = true, shop = true, cart = true, marketplace = true,
+    running = true, speed = true, arrows = true, move = true, teleport = true, target = true, crosshair = true, aim = true,
+    shield = true, lock = true, unlock = true, star = true, sparkle = true, favorite = true, crown = true,
+    clock = true, time = true, timer = true, chart = true, activity = true, cpu = true, monitor = true, gamepad = true,
+    save = true, download = true, upload = true, refresh = true, server = true, settings = true, gear = true, sliders = true,
+    power = true, check = true, x = true, plus = true, minus = true, bolt = true, fire = true, flame = true, swords = true, sword = true, combat = true,
+    webhook = true, bell = true, info = true, alert = true, warning = true, search = true, copy = true, clipboard = true,
+    chevron = true, list = true, palette = true, layers = true, contrast = true, heart = true, volume = true, camera = true,
+    code = true, terminal = true, bug = true, inventory = true, backpack = true, gift = true, gem = true, coin = true, skull = true, eggs = true, discord = true, team = true, group = true,
+    sun = true,
 }
 
 local function copyTheme(theme)
@@ -323,77 +324,274 @@ local function textLabel(parent, text, size, color, bold)
     }, parent)
 end
 
+local ICON_ALIASES = {
+    dashboard = "grid", configs = "file", marketplace = "cart", shop = "cart", users = "user",
+    person = "user", player = "user", team = "user", group = "user", globe = "world", compass = "world", map = "world",
+    visible = "eye", render = "eye", esp = "eye", eyeoff = "eye", hidden = "eye", wrench = "settings",
+    sliders = "settings", utilities = "settings", gear = "settings", speed = "gauge", activity = "gauge",
+    running = "move", arrows = "move", teleport = "move", aim = "target", crosshair = "target",
+    favorite = "star", sparkle = "star", logo = "star", time = "clock", timer = "clock", chart = "gauge",
+    download = "save", upload = "save", clipboard = "file", list = "file", inventory = "file",
+    backpack = "file", server = "world", monitor = "grid", gamepad = "grid", contrast = "eye", refresh = "refresh",
+    menu = "grid", power = "bolt", fire = "bolt", flame = "bolt", swords = "move", sword = "move",
+    combat = "move", webhook = "bolt", info = "target", alert = "target", warning = "target",
+    copy = "file", palette = "star", layers = "grid", camera = "eye", bug = "target", gift = "star",
+    gem = "star", coin = "star", skull = "target", eggs = "star", discord = "world", heart = "star",
+    volume = "bolt", check = "check", x = "close", plus = "plus", minus = "minus", save = "save",
+    folder = "file", file = "file", eyeoff = "eye", lock = "shield", unlock = "shield",
+    caret = "chevron", dropdown = "chevron", angle = "chevron", expand = "maximize", collapse = "minus",
+}
+
+local function canonicalIcon(value)
+    local name = string.lower(tostring(value or "sparkle")):gsub("[%s%-]", "")
+    if ICON_ALIASES[name] then name = ICON_ALIASES[name] end
+    if name == "star" or name == "sparkle" or name == "logo" then return "star" end
+    if name == "home" or name == "user" or name == "world" or name == "eye" or name == "settings"
+        or name == "gauge" or name == "clock" or name == "move" or name == "target" or name == "grid"
+        or name == "file" or name == "cart" or name == "shield" or name == "save" or name == "bolt"
+        or name == "check" or name == "close" or name == "plus" or name == "minus" or name == "search"
+        or name == "maximize" or name == "chevron" or name == "sun" or name == "resize" or name == "refresh" then
+        return name
+    end
+    return "star"
+end
+
+local function vectorIcon(parent, name, size, tint)
+    local dimension = math.max(8, tonumber(size) or 18)
+    local scale = dimension / 24
+    local root = new("Frame", {
+        Name = "AxelVectorIcon",
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.fromOffset(dimension, dimension),
+    }, parent)
+    local function segment(x1, y1, x2, y2, thickness)
+        local dx, dy = (x2 - x1) * scale, (y2 - y1) * scale
+        local length = math.sqrt(dx * dx + dy * dy)
+        local angle = math.deg(math.atan2(dy, dx))
+        local line = new("Frame", {
+            Name = "AxelIconLine",
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = tint or Color3.new(1, 1, 1),
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset((x1 + x2) * 0.5 * scale, (y1 + y2) * 0.5 * scale),
+            Rotation = angle,
+            Size = UDim2.fromOffset(length, math.max(1, (thickness or 1.8) * scale)),
+        }, root)
+        corner(line, 2)
+        return line
+    end
+    local function outline(x, y, w, h, radius)
+        local shape = new("Frame", {
+            Name = "AxelIconShape",
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset((x + w / 2) * scale, (y + h / 2) * scale),
+            Size = UDim2.fromOffset(w * scale, h * scale),
+        }, root)
+        corner(shape, math.max(1, (radius or 4) * scale))
+        stroke(shape, tint or Color3.new(1, 1, 1), 0, math.max(1, 1.7 * scale))
+        return shape
+    end
+    local function dot(x, y, diameter, filled)
+        local shape = new("Frame", {
+            Name = "AxelIconDot",
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = tint or Color3.new(1, 1, 1),
+            BackgroundTransparency = filled and 0 or 1,
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset(x * scale, y * scale),
+            Size = UDim2.fromOffset(diameter * scale, diameter * scale),
+        }, root)
+        corner(shape, diameter * scale / 2)
+        if not filled then stroke(shape, tint or Color3.new(1, 1, 1), 0, math.max(1, 1.7 * scale)) end
+        return shape
+    end
+
+    if name == "search" then
+        dot(10, 10, 12, false); segment(14.5, 14.5, 21, 21, 2)
+    elseif name == "home" then
+        segment(3, 11, 12, 3, 2); segment(12, 3, 21, 11, 2)
+        segment(5, 10, 5, 21, 2); segment(19, 10, 19, 21, 2); segment(5, 21, 19, 21, 2)
+        segment(10, 21, 10, 14, 2); segment(10, 14, 14, 14, 2); segment(14, 14, 14, 21, 2)
+    elseif name == "user" then
+        dot(12, 7, 7, false); segment(4, 21, 5, 18, 2); segment(5, 18, 9, 15, 2)
+        segment(9, 15, 15, 15, 2); segment(15, 15, 19, 18, 2); segment(19, 18, 20, 21, 2)
+        segment(4, 21, 20, 21, 2)
+    elseif name == "world" then
+        dot(12, 12, 19, false); segment(3, 12, 21, 12, 1.4); segment(12, 3, 12, 21, 1.4)
+        segment(8, 4, 7, 12, 1.2); segment(7, 12, 8, 20, 1.2)
+        segment(16, 4, 17, 12, 1.2); segment(17, 12, 16, 20, 1.2)
+    elseif name == "eye" then
+        segment(2, 12, 7, 6, 1.8); segment(7, 6, 12, 4, 1.8); segment(12, 4, 17, 6, 1.8)
+        segment(17, 6, 22, 12, 1.8); segment(22, 12, 17, 18, 1.8); segment(17, 18, 12, 20, 1.8)
+        segment(12, 20, 7, 18, 1.8); segment(7, 18, 2, 12, 1.8); dot(12, 12, 6, false)
+    elseif name == "settings" then
+        dot(12, 12, 7, false)
+        for i = 0, 7 do
+            local a = math.rad(i * 45)
+            local x1, y1 = 12 + math.cos(a) * 6.5, 12 + math.sin(a) * 6.5
+            local x2, y2 = 12 + math.cos(a) * 10, 12 + math.sin(a) * 10
+            segment(x1, y1, x2, y2, 2.2)
+        end
+    elseif name == "gauge" then
+        segment(3, 19, 4, 12, 1.8); segment(4, 12, 8, 6, 1.8); segment(8, 6, 12, 4, 1.8)
+        segment(12, 4, 16, 6, 1.8); segment(16, 6, 20, 12, 1.8); segment(20, 12, 21, 19, 1.8)
+        segment(3, 19, 21, 19, 1.8); segment(12, 17, 17, 10, 2)
+    elseif name == "clock" then
+        dot(12, 12, 19, false); segment(12, 6, 12, 12, 2); segment(12, 12, 17, 15, 2)
+    elseif name == "move" then
+        segment(12, 3, 12, 21, 1.8); segment(3, 12, 21, 12, 1.8)
+        segment(12, 3, 8, 7, 1.8); segment(12, 3, 16, 7, 1.8)
+        segment(12, 21, 8, 17, 1.8); segment(12, 21, 16, 17, 1.8)
+        segment(3, 12, 7, 8, 1.8); segment(3, 12, 7, 16, 1.8)
+        segment(21, 12, 17, 8, 1.8); segment(21, 12, 17, 16, 1.8)
+    elseif name == "target" then
+        dot(12, 12, 16, false); dot(12, 12, 6, false); segment(12, 1, 12, 5, 1.8)
+        segment(12, 19, 12, 23, 1.8); segment(1, 12, 5, 12, 1.8); segment(19, 12, 23, 12, 1.8)
+    elseif name == "grid" then
+        for _, point in ipairs({{4,4},{14,4},{4,14},{14,14}}) do outline(point[1], point[2], 6, 6, 1.4) end
+    elseif name == "file" then
+        segment(6, 3, 15, 3, 1.8); segment(15, 3, 19, 7, 1.8); segment(19, 7, 19, 21, 1.8)
+        segment(19, 21, 5, 21, 1.8); segment(5, 21, 5, 4, 1.8); segment(5, 4, 6, 3, 1.8)
+        segment(15, 3, 15, 7, 1.5); segment(15, 7, 19, 7, 1.5)
+        segment(8, 12, 16, 12, 1.4); segment(8, 16, 16, 16, 1.4)
+    elseif name == "cart" then
+        segment(3, 5, 6, 5, 1.8); segment(6, 5, 8, 16, 1.8); segment(8, 16, 19, 16, 1.8)
+        segment(19, 16, 22, 8, 1.8); segment(7, 9, 21, 9, 1.8); dot(10, 20, 3, true); dot(18, 20, 3, true)
+    elseif name == "shield" then
+        segment(12, 3, 20, 6, 1.8); segment(20, 6, 19, 15, 1.8); segment(19, 15, 12, 21, 1.8)
+        segment(12, 21, 5, 15, 1.8); segment(5, 15, 4, 6, 1.8); segment(4, 6, 12, 3, 1.8)
+        segment(8, 12, 11, 15, 1.8); segment(11, 15, 16, 9, 1.8)
+    elseif name == "save" then
+        segment(4, 3, 20, 3, 1.8); segment(20, 3, 20, 21, 1.8); segment(20, 21, 4, 21, 1.8)
+        segment(4, 21, 4, 3, 1.8); segment(8, 3, 8, 10, 1.5); segment(8, 10, 16, 10, 1.5)
+        segment(16, 10, 16, 3, 1.5); segment(8, 15, 8, 19, 1.5); segment(8, 19, 16, 19, 1.5)
+        segment(16, 19, 16, 15, 1.5)
+    elseif name == "bolt" then
+        segment(14, 2, 6, 13, 2); segment(6, 13, 12, 13, 2); segment(12, 13, 10, 22, 2)
+        segment(10, 22, 19, 10, 2); segment(19, 10, 13, 10, 2); segment(13, 10, 14, 2, 2)
+    elseif name == "check" then
+        segment(4, 13, 10, 19, 2.4); segment(10, 19, 21, 5, 2.4)
+    elseif name == "close" then
+        segment(6, 6, 18, 18, 2); segment(18, 6, 6, 18, 2)
+    elseif name == "plus" then
+        segment(12, 4, 12, 20, 2); segment(4, 12, 20, 12, 2)
+    elseif name == "minus" then
+        segment(4, 12, 20, 12, 2)
+    elseif name == "maximize" then
+        outline(4, 4, 16, 16, 2)
+    elseif name == "resize" then
+        segment(6, 18, 18, 6, 1.8); segment(12, 18, 18, 12, 1.8); segment(12, 6, 18, 6, 1.8)
+        segment(18, 6, 18, 12, 1.8)
+    elseif name == "refresh" then
+        segment(18, 8, 17, 5, 1.8); segment(17, 5, 20, 5, 1.8); segment(20, 5, 20, 8, 1.8)
+        segment(19, 7, 17, 5, 1.8); segment(17, 5, 13, 4, 1.8); segment(13, 4, 8, 6, 1.8)
+        segment(8, 6, 5, 10, 1.8); segment(5, 10, 5, 15, 1.8); segment(5, 15, 8, 19, 1.8)
+        segment(8, 19, 13, 20, 1.8); segment(13, 20, 18, 17, 1.8); segment(18, 17, 20, 13, 1.8)
+    elseif name == "chevron" then
+        segment(6, 9, 12, 15, 1.8); segment(12, 15, 18, 9, 1.8)
+    elseif name == "sun" then
+        dot(12, 12, 8, false)
+        for i = 0, 7 do
+            local a = math.rad(i * 45)
+            segment(12 + math.cos(a) * 7, 12 + math.sin(a) * 7, 12 + math.cos(a) * 10, 12 + math.sin(a) * 10, 1.7)
+        end
+    elseif name == "star" then
+        segment(12, 2, 14, 9, 2); segment(14, 9, 22, 12, 2); segment(22, 12, 14, 14, 2)
+        segment(14, 14, 12, 22, 2); segment(12, 22, 10, 14, 2); segment(10, 14, 2, 12, 2)
+        segment(2, 12, 10, 9, 2); segment(10, 9, 12, 2, 2)
+    end
+
+    local function updateZIndex()
+        for _, child in ipairs(root:GetDescendants()) do
+            if child:IsA("GuiObject") then child.ZIndex = root.ZIndex + 1 end
+        end
+    end
+    root:GetPropertyChangedSignal("ZIndex"):Connect(updateZIndex)
+    updateZIndex()
+    return root
+end
+
+local function setIconTint(object, color, duration)
+    if not object then return end
+    if object:IsA("ImageLabel") or object:IsA("ImageButton") then
+        tween(object, { ImageColor3 = color }, duration or 0.18)
+        local fallback = object.Parent and object.Parent:FindFirstChild("AxelVectorIcon")
+        if fallback then setIconTint(fallback, color, duration) end
+        return
+    end
+    if object:IsA("GuiObject") then
+        for _, child in ipairs(object:GetDescendants()) do
+            if child:IsA("GuiObject") and child.Name ~= "AxelVectorIcon" then tween(child, { BackgroundColor3 = color }, duration or 0.18) end
+            if child:IsA("UIStroke") then tween(child, { Color = color }, duration or 0.18) end
+        end
+    end
+end
+
+local function fadeIcon(object, duration)
+    if not object then return end
+    if object:IsA("ImageLabel") or object:IsA("ImageButton") then
+        tween(object, { ImageTransparency = 1 }, duration or 0.2)
+        local fallback = object.Parent and object.Parent:FindFirstChild("AxelVectorIcon")
+        if fallback then fadeIcon(fallback, duration) end
+        return
+    end
+    if object:IsA("GuiObject") then
+        for _, child in ipairs(object:GetDescendants()) do
+            if child:IsA("GuiObject") then tween(child, { BackgroundTransparency = 1 }, duration or 0.2) end
+            if child:IsA("UIStroke") then tween(child, { Transparency = 1 }, duration or 0.2) end
+        end
+    end
+end
+
 local function icon(parent, value, size, tint)
     local config = type(value) == "table" and value or nil
     local source = config and (config.Image or config.Asset or config.Id or config.Source) or value
-    local sourceText = string.lower(tostring(source or ""))
-    local semanticGlyph = ICON_FALLBACKS[sourceText]
-    -- Allow callers to request a deterministic glyph explicitly. By default,
-    -- semantic names try their mapped image asset and keep a glyph visible
-    -- until the image has loaded (or permanently if the asset is unavailable).
-    if semanticGlyph and config and config.UseImage == false then
-        local glyph = textLabel(parent, config.Fallback or semanticGlyph, config.Size or size or 18, config.Color or tint or Color3.new(1, 1, 1), true)
-        glyph.TextXAlignment = Enum.TextXAlignment.Center
-        glyph.TextYAlignment = Enum.TextYAlignment.Center
-        return glyph
-    end
+    local sourceText = string.lower(tostring(source or "sparkle"))
+    local iconSize = (config and tonumber(config.Size)) or tonumber(size) or 18
+    local iconTint = (config and config.Color) or tint or Color3.new(1, 1, 1)
+    local semantic = BUILTIN_ICONS[sourceText] ~= nil or sourceText:match("^[%a_%-]+$") ~= nil
+    local forceImage = config and config.UseImage == true
+    if semantic and not forceImage then return vectorIcon(parent, canonicalIcon(sourceText), iconSize, iconTint) end
+
     local image = imageSource(source, ACTIVE_ASSET_FOLDER)
     if image then
+        local fallback = vectorIcon(parent, canonicalIcon(config and config.Fallback or "star"), iconSize, iconTint)
+        fallback.Name = "AxelVectorIcon"
+        fallback.Visible = true
         local imageLabel = new("ImageLabel", {
             BackgroundTransparency = 1,
             Image = image,
-            ImageColor3 = (config and config.Color) or tint or Color3.new(1, 1, 1),
-            Size = UDim2.fromOffset((config and config.Size) or size or 18, (config and config.Size) or size or 18),
+            ImageColor3 = iconTint,
+            Size = UDim2.fromOffset(iconSize, iconSize),
             ScaleType = (config and config.ScaleType) or Enum.ScaleType.Fit,
+            Visible = false,
         }, parent)
         if config and config.ImageRectOffset then imageLabel.ImageRectOffset = config.ImageRectOffset end
         if config and config.ImageRectSize then imageLabel.ImageRectSize = config.ImageRectSize end
-        -- Image assets can be blocked by the current game or executor. Keep
-        -- the returned ImageLabel API-compatible, but reveal a readable glyph
-        -- in the same slot when Roblox raises ImageFailed.
-        local imageFallback = config and config.Fallback or ICON_FALLBACKS[sourceText] or (sourceText:find("logo", 1, true) and "✦") or "◇"
-        local fallbackLabel = textLabel(parent, imageFallback, (config and config.Size) or size or 18, (config and config.Color) or tint or Color3.new(1, 1, 1), true)
-        fallbackLabel.Name = "AxelIconFallback"
-        -- The fallback prevents a blank icon while Roblox's image pipeline is
-        -- still resolving an asset ID. ImageLoaded hides it on success.
-        fallbackLabel.Visible = true
-        fallbackLabel.AnchorPoint = imageLabel.AnchorPoint
-        fallbackLabel.TextXAlignment = Enum.TextXAlignment.Center
-        fallbackLabel.TextYAlignment = Enum.TextYAlignment.Center
-        fallbackLabel.Position = imageLabel.Position
-        fallbackLabel.Size = imageLabel.Size
-        fallbackLabel.ZIndex = (tonumber(imageLabel.ZIndex) or 0) + 1
         local function syncFallback()
-            if not imageLabel.Parent or not fallbackLabel.Parent then return end
-            fallbackLabel.Position = imageLabel.Position
-            fallbackLabel.AnchorPoint = imageLabel.AnchorPoint
-            fallbackLabel.Size = imageLabel.Size
-            fallbackLabel.ZIndex = (tonumber(imageLabel.ZIndex) or 0) + 1
+            if not imageLabel.Parent or not fallback.Parent then return end
+            fallback.Position = imageLabel.Position
+            fallback.AnchorPoint = imageLabel.AnchorPoint
+            fallback.Size = imageLabel.Size
+            fallback.ZIndex = imageLabel.ZIndex + 1
         end
-        pcall(function()
-            imageLabel:GetPropertyChangedSignal("Position"):Connect(syncFallback)
-            imageLabel:GetPropertyChangedSignal("AnchorPoint"):Connect(syncFallback)
-            imageLabel:GetPropertyChangedSignal("Size"):Connect(syncFallback)
-            imageLabel:GetPropertyChangedSignal("ZIndex"):Connect(syncFallback)
-            imageLabel.ImageLoaded:Connect(function()
-                if imageLabel.Parent and fallbackLabel.Parent then
-                    imageLabel.Visible = true
-                    fallbackLabel.Visible = false
-                end
-            end)
-            imageLabel.ImageFailed:Connect(function()
-                imageLabel.Visible = false
-                fallbackLabel.Visible = true
-            end)
-            if imageLabel.IsLoaded then fallbackLabel.Visible = false end
+        imageLabel:GetPropertyChangedSignal("Position"):Connect(syncFallback)
+        imageLabel:GetPropertyChangedSignal("AnchorPoint"):Connect(syncFallback)
+        imageLabel:GetPropertyChangedSignal("Size"):Connect(syncFallback)
+        imageLabel:GetPropertyChangedSignal("ZIndex"):Connect(syncFallback)
+        imageLabel.ImageLoaded:Connect(function()
+            if imageLabel.Parent and fallback.Parent then imageLabel.Visible = true; fallback.Visible = false end
         end)
+        imageLabel.ImageFailed:Connect(function()
+            if imageLabel.Parent and fallback.Parent then imageLabel.Visible = false; fallback.Visible = true end
+        end)
+        if imageLabel.IsLoaded then imageLabel.Visible = true; fallback.Visible = false end
         return imageLabel
     end
-    local fallback = config and config.Fallback
-    if not fallback then
-        fallback = ICON_FALLBACKS[sourceText] or (sourceText:find("logo", 1, true) and "✦") or "◇"
-    end
-    return textLabel(parent, fallback, size or 18, tint or Color3.new(1, 1, 1), true)
+    return vectorIcon(parent, canonicalIcon(sourceText), iconSize, iconTint)
 end
 
 local function resolveParent()
@@ -630,11 +828,7 @@ function AxelUI:_setActiveTab(tab, active)
         tween(tab.TabStroke, { Transparency = active and 0.05 or 0.9, Color = active and self.Theme.Accent or self.Theme.Border }, 0.18)
     end
     setTextColor(tab.Title, color)
-    if tab.Icon then
-        tween(tab.Icon, { ImageColor3 = color }, 0.18)
-        local glyph = tab.Icon.Parent and tab.Icon.Parent:FindFirstChild("AxelIconFallback")
-        if glyph then tween(glyph, { TextColor3 = color }, 0.18) end
-    end
+    if tab.Icon then setIconTint(tab.Icon, color, 0.18) end
     if tab.Indicator then
         tween(tab.Indicator, {
             BackgroundTransparency = active and 0 or 1,
@@ -760,7 +954,8 @@ function AxelUI:SetOpen(visible)
         end)
     end
     self._open = visible
-    if self.TouchButton then self.TouchButton.Visible = self.IsMobile == true or not visible end
+    if self.RestoreButton then self.RestoreButton.Visible = not visible end
+    if self.TouchButton and self.TouchButton ~= self.RestoreButton then self.TouchButton.Visible = not visible end
 end
 
 function AxelUI:SetMaximized(value)
@@ -1028,7 +1223,7 @@ function AxelUI:_applyResponsive()
         self.TabSubtitle.Visible = false
         self.TabHeader.Size = UDim2.new(1, 0, 0, 38)
         self.TabTitle.Position = UDim2.fromOffset(12, 8)
-        self.TouchButton.Visible = true
+        if self.RestoreButton then self.RestoreButton.Visible = not self._open end
         self.NotificationHolder.Size = UDim2.fromOffset(220, 0)
         self.NotificationHolder.Position = UDim2.new(1, -10, 0, 58)
     else
@@ -1075,7 +1270,7 @@ function AxelUI:_applyResponsive()
         self.TabSubtitle.Visible = true
         self.TabHeader.Size = UDim2.new(1, 0, 0, 46)
         self.TabTitle.Position = UDim2.fromOffset(18, 5)
-        self.TouchButton.Visible = not self._open
+        if self.RestoreButton then self.RestoreButton.Visible = not self._open end
         self.NotificationHolder.Size = UDim2.fromOffset(300, 0)
         self.NotificationHolder.Position = UDim2.new(1, -18, 0, 62)
     end
@@ -2735,9 +2930,9 @@ function AxelUI.new(options)
     self.DragHandle = dragHandle
     local logoHolder = new("CanvasGroup", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.fromOffset(36, 36), Position = UDim2.fromOffset(16, 15), ClipsDescendants = true }, header)
     corner(logoHolder, 10)
-    local logoScale = math.clamp(tonumber(options.LogoScale) or 1, 0.8, 1.6)
-    local logoSize = 36 * logoScale
-    local logoIcon = icon(logoHolder, { Image = options.Logo or "dashboard", Fallback = "✦", Size = logoSize, ScaleType = options.LogoScaleType or Enum.ScaleType.Fit }, logoSize, self.Theme.Accent2)
+    local logoScale = math.clamp(tonumber(options.LogoScale) or 1, 0.65, 1.4)
+    local logoSize = math.min(30 * logoScale, 32)
+    local logoIcon = icon(logoHolder, options.Logo or "star", logoSize, self.Theme.Accent2)
     logoIcon.AnchorPoint = Vector2.new(0.5, 0.5)
     logoIcon.Position = UDim2.fromScale(0.5, 0.5)
     logoIcon.Size = UDim2.fromOffset(logoSize, logoSize)
@@ -2753,27 +2948,27 @@ function AxelUI.new(options)
     self.StatusSeparator = textLabel(header, "|", 10, self.Theme.Muted, false); self.StatusSeparator.Position = UDim2.new(1, -211, 0, 14); self.StatusSeparator.Size = UDim2.fromOffset(8, 20); self.StatusSeparator.TextXAlignment = Enum.TextXAlignment.Center
     self.StatusDot = new("Frame", { BackgroundColor3 = self.Theme.Success, BorderSizePixel = 0, Size = UDim2.fromOffset(7, 7), Position = UDim2.new(1, -190, 0, 21) }, header); corner(self.StatusDot, 4)
     self.StatusText = textLabel(header, "Online", 10, self.Theme.Success, true); self.StatusText.Position = UDim2.new(1, -176, 0, 14); self.StatusText.Size = UDim2.fromOffset(60, 20); self.StatusText.TextXAlignment = Enum.TextXAlignment.Left
-    local function headerControl(text, offset, callback)
+    local function headerControl(kind, offset, callback)
         local button = new("TextButton", {
             AutoButtonColor = false,
             BackgroundColor3 = self.Theme.Element,
             BackgroundTransparency = 0.18,
             BorderSizePixel = 0,
-            Text = text,
-            TextColor3 = self.Theme.SubText,
-            TextSize = text == "×" and 20 or 15,
-            FontFace = fontFace(nil, false),
+            Text = "",
             Size = UDim2.fromOffset(28, 28),
-            Position = UDim2.new(1, offset, 0, 11),
+            Position = UDim2.new(1, offset, 0, 15),
         }, header)
         corner(button, 7)
+        local buttonIcon = icon(button, kind, 12, self.Theme.SubText)
+        buttonIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+        buttonIcon.Position = UDim2.fromScale(0.5, 0.5)
         pressAnimation(self, button)
         connect(self, button.MouseButton1Click, callback)
         return button
     end
-    local minimizeButton = headerControl("—", -102, function() self:SetOpen(false) end)
-    local maximizeButton = headerControl("□", -70, function() self:SetMaximized(not self._maximized) end)
-    local unloadButton = headerControl("×", -38, function() self:ConfirmUnload() end)
+    local minimizeButton = headerControl("minus", -102, function() self:SetOpen(false) end)
+    local maximizeButton = headerControl("maximize", -70, function() self:SetMaximized(not self._maximized) end)
+    local unloadButton = headerControl("close", -38, function() self:ConfirmUnload() end)
     self.MinimizeButton, self.MaximizeButton, self.UnloadButton = minimizeButton, maximizeButton, unloadButton
 
     local resizeHandle = new("TextButton", {
@@ -2782,7 +2977,7 @@ function AxelUI.new(options)
         BackgroundColor3 = self.Theme.Element,
         BackgroundTransparency = self.ShowResizeGrip and 0.12 or 1,
         BorderSizePixel = 0,
-        Text = "◢",
+        Text = "",
         TextColor3 = self.Theme.Muted,
         TextTransparency = self.ShowResizeGrip and 0 or 1,
         TextSize = 12,
@@ -2793,13 +2988,24 @@ function AxelUI.new(options)
         ZIndex = 20,
     }, self.Window)
     corner(resizeHandle, 5)
+    local resizeIcon = icon(resizeHandle, "resize", 13, self.Theme.Muted)
+    resizeIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+    resizeIcon.Position = UDim2.fromScale(0.5, 0.5)
+    resizeIcon.Visible = self.ShowResizeGrip
     self.ResizeHandle = resizeHandle
     resizeHandle.Visible = self.Resizable
     connect(self, resizeHandle.MouseEnter, function()
-        if not self.ShowResizeGrip then tween(resizeHandle, { BackgroundTransparency = 0.24, TextTransparency = 0.35 }, 0.12) end
+        if not self.ShowResizeGrip then
+            resizeIcon.Visible = true
+            setIconTint(resizeIcon, self.Theme.SubText, 0.12)
+            tween(resizeHandle, { BackgroundTransparency = 0.24 }, 0.12)
+        end
     end)
     connect(self, resizeHandle.MouseLeave, function()
-        if not self.ShowResizeGrip then tween(resizeHandle, { BackgroundTransparency = 1, TextTransparency = 1 }, 0.16) end
+        if not self.ShowResizeGrip then
+            resizeIcon.Visible = false
+            tween(resizeHandle, { BackgroundTransparency = 1 }, 0.16)
+        end
     end)
     connect(self, resizeHandle.InputBegan, function(input)
         if not self.Resizable or self._maximized then return end
@@ -2836,8 +3042,8 @@ function AxelUI.new(options)
     corner(profile, 10); stroke(profile, self.Theme.Border, 0.55, 1)
     local avatar = new("ImageLabel", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Size = UDim2.fromOffset(30, 30), Position = UDim2.fromOffset(8, 9), Image = "", ScaleType = Enum.ScaleType.Crop }, profile)
     corner(avatar, 15)
-    local avatarFallback = textLabel(profile, "♙", 17, self.Theme.SubText, true)
-    avatarFallback.Position = avatar.Position; avatarFallback.Size = avatar.Size; avatarFallback.ZIndex = avatar.ZIndex + 1
+    local avatarFallback = icon(profile, "user", 20, self.Theme.SubText)
+    avatarFallback.Position = UDim2.fromOffset(13, 14); avatarFallback.ZIndex = avatar.ZIndex + 1
     pcall(function()
         local player = Players.LocalPlayer
         if player then avatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100) end
@@ -2886,11 +3092,24 @@ function AxelUI.new(options)
         Visible = false,
         ZIndex = 250,
     }, self.Gui)
-    corner(self.TouchButton, 11)
+    corner(self.TouchButton, 22)
     stroke(self.TouchButton, self.Theme.Accent, 0.18, 1)
-    local touchIcon = icon(self.TouchButton, "dashboard", 18, self.Theme.Accent2); touchIcon.Position = UDim2.fromOffset(13, 13); touchIcon.ZIndex = 251
+    self.TouchButton.Name = "AxelRestoreButton"
+    local touchStroke = self.TouchButton:FindFirstChildOfClass("UIStroke")
+    if touchStroke then touchStroke.Thickness = 1.5; touchStroke.Transparency = 0.08 end
+    local touchIcon = icon(self.TouchButton, "star", 23, self.Theme.Accent2)
+    touchIcon.AnchorPoint = Vector2.new(0.5, 0.5); touchIcon.Position = UDim2.fromScale(0.5, 0.5); touchIcon.ZIndex = 251
+    self.RestoreButton = self.TouchButton
     pressAnimation(self, self.TouchButton)
-    connect(self, self.TouchButton.MouseButton1Click, function() self:Toggle() end)
+    connect(self, self.TouchButton.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            self._restoreDrag = { Start = input.Position, Origin = self.TouchButton.AbsolutePosition, Moved = false }
+        end
+    end)
+    connect(self, self.TouchButton.MouseButton1Click, function()
+        if self._restoreDragged then return end
+        self:SetOpen(true)
+    end)
 
     connect(self, search:GetPropertyChangedSignal("Text"), function()
         if self._dropdownClose then pcall(self._dropdownClose) end
@@ -2918,11 +3137,28 @@ function AxelUI.new(options)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             self._dragging = false
             self._resizing = false
+            if self._restoreDrag then
+                if self._restoreDrag.Moved then
+                    self._restoreDragged = true
+                    task.delay(0.25, function() self._restoreDragged = false end)
+                end
+                self._restoreDrag = nil
+            end
         end
     end)
     connect(self, UserInputService.InputChanged, function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
-        if self._dragging and self._dragStart and self._windowStart then
+        if self._restoreDrag and self.RestoreButton and self.RestoreButton.Visible then
+            local delta = input.Position - self._restoreDrag.Start
+            if math.abs(delta.X) + math.abs(delta.Y) > 6 then self._restoreDrag.Moved = true end
+            if self._restoreDrag.Moved then
+                local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+                local buttonSize = self.RestoreButton.AbsoluteSize
+                local x = math.clamp(self._restoreDrag.Origin.X + delta.X, 8, math.max(8, viewport.X - buttonSize.X - 8))
+                local y = math.clamp(self._restoreDrag.Origin.Y + delta.Y, 8, math.max(8, viewport.Y - buttonSize.Y - 8))
+                self.RestoreButton.Position = UDim2.fromOffset(x, y)
+            end
+        elseif self._dragging and self._dragStart and self._windowStart then
             local delta = input.Position - self._dragStart
             self.Window.Position = UDim2.new(self._windowStart.X.Scale, self._windowStart.X.Offset + delta.X, self._windowStart.Y.Scale, self._windowStart.Y.Offset + delta.Y)
         elseif self._resizing and self._resizeStart and self._resizeSize then
@@ -2954,7 +3190,7 @@ function AxelUI.new(options)
     corner(loaderCard, 12); stroke(loaderCard, self.Theme.Accent, 0.42, 1)
     new("UIGradient", { Color = ColorSequence.new(self.Theme.Surface, self.Theme.Background), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.12) }), Rotation = 35 }, loaderCard)
     local loaderScale = new("UIScale", { Scale = 0.78 }, loaderCard)
-    local overlayIcon = icon(loaderCard, { Image = options.Logo or "dashboard", Fallback = "✦", Size = 42 }, 42, self.Theme.Accent2); overlayIcon.Position = UDim2.fromOffset(22, 23); overlayIcon.ZIndex = 102
+    local overlayIcon = icon(loaderCard, options.Logo or "star", 34, self.Theme.Accent2); overlayIcon.Position = UDim2.fromOffset(26, 27); overlayIcon.ZIndex = 102
     local loadingTitle = textLabel(loaderCard, options.LoadingText or options.Name or "Axel Hub", 16, self.Theme.Text, true); loadingTitle.Position = UDim2.fromOffset(78, 20); loadingTitle.Size = UDim2.new(1, -96, 0, 24); loadingTitle.ZIndex = 102
     local loadingText = textLabel(loaderCard, options.LoadingSubtitle or "Preparing your workspace", 10, self.Theme.SubText, false); loadingText.Position = UDim2.fromOffset(78, 46); loadingText.Size = UDim2.new(1, -96, 0, 18); loadingText.ZIndex = 102
     local loadingBar = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.new(1, -44, 0, 5), Position = UDim2.fromOffset(22, 104), ZIndex = 102 }, loaderCard); corner(loadingBar, 4)
@@ -2968,7 +3204,7 @@ function AxelUI.new(options)
         tween(loaderScale, { Scale = 0.94 }, 0.16, Enum.EasingStyle.Quad)
         tween(overlay, { BackgroundTransparency = 1 }, 0.28)
         tween(loaderCard, { BackgroundTransparency = 1 }, 0.22)
-        tween(overlayIcon, { ImageTransparency = 1 }, 0.2)
+        fadeIcon(overlayIcon, 0.2)
         tween(loadingTitle, { TextTransparency = 1 }, 0.2)
         tween(loadingText, { TextTransparency = 1 }, 0.2)
         tween(loadingHint, { TextTransparency = 1 }, 0.2)
@@ -2993,7 +3229,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.1
+AxelUI.Version = 6.2
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
