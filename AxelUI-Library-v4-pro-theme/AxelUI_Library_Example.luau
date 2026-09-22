@@ -1,11 +1,11 @@
 -- AxelUI dashboard showcase
 -- Replace YOUR_AXEL_UI_LIBRARY_URL with the URL where you host AxelUI_Library.luau.
-local AxelUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"))()
+local AxelUI = loadstring(game:HttpGet("YOUR_AXEL_UI_LIBRARY_URL"))()
 
 local Window = AxelUI.CreateWindow({
     Name = "Axel Hub",
     Subtitle = "Play Further",
-    Footer = "AxelUI 5.6  •  Ready when you are",
+    Footer = "AxelUI 5.7  •  Ready when you are",
     GuiName = "AxelHubUI",
     ToggleKeybind = "RightControl",
     -- Set this when your executor stores AxelLogo.png in a subfolder.
@@ -17,13 +17,17 @@ local Window = AxelUI.CreateWindow({
         Surface = Color3.fromRGB(17, 17, 19),
         Surface2 = Color3.fromRGB(24, 24, 27),
         Element = Color3.fromRGB(30, 29, 28),
-        Border = Color3.fromRGB(91, 72, 31),
+        -- Reference cards use a quiet graphite border; gold is reserved for
+        -- the active state, focus glow and primary actions.
+        Border = Color3.fromRGB(58, 59, 67),
     },
-    Logo = "AxelLogo.png",
-    Background = "AxelLogo.png",
+    -- This is the supplied Roblox asset. If the asset is unavailable in the
+    -- current game, the library keeps its deterministic logo fallback visible.
+    Logo = "rbxassetid://86949082023913",
+    Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 5.6  •  Preparing your workspace",
+    LoadingSubtitle = "AxelUI 5.7  •  Preparing your workspace",
 })
 
 Window:Notify({
@@ -62,7 +66,7 @@ local function safeSection(tab, data)
 end
 
 safeElement(Home, "AddHero", {
-    Image = "AxelLogo.png", -- replace with your own scenic rbxassetid/local image if desired
+    Image = "rbxassetid://86949082023913", -- replace with a scenic rbxassetid/local image if desired
     WelcomeLabel = "Welcome to",
     WelcomeTitle = "Axel Hub",
     WelcomeContent = "Powerful tools. A smoother way to play.",
