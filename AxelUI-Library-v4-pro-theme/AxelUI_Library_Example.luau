@@ -1,6 +1,6 @@
 -- AxelUI dashboard showcase
 -- Replace YOUR_AXEL_UI_LIBRARY_URL with the URL where you host AxelUI_Library.luau.
-local AxelUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"))()
+local AxelUI = loadstring(game:HttpGet("YOUR_AXEL_UI_LIBRARY_URL"))()
 
 local Window = AxelUI.CreateWindow({
     Name = "Axel Hub",
@@ -8,6 +8,8 @@ local Window = AxelUI.CreateWindow({
     Footer = "v1.0.0  •  Ready when you are",
     GuiName = "AxelHubUI",
     ToggleKeybind = "RightControl",
+    -- Set this when your executor stores AxelLogo.png in a subfolder.
+    -- AssetFolder = "AxelUI",
     Theme = {
         Accent = Color3.fromRGB(255, 193, 7),
         Accent2 = Color3.fromRGB(255, 221, 120),
@@ -34,10 +36,14 @@ Window:Notify({
 local Home = Window:AddTab({ Name = "Home", Description = "Live status and quick actions", Icon = "home" })
 Home:AddHero({
     Image = "AxelLogo.png", -- replace with your own scenic rbxassetid/local image if desired
+    WelcomeLabel = "Welcome to",
+    WelcomeTitle = "Axel Hub",
+    WelcomeContent = "Powerful tools. A smoother way to play.",
+    BannerTitle = "Customize your experience",
     Title = "Customize your experience",
     Content = "Simple. Powerful. Yours. Build your own control center with clean, readable controls.",
     Button = "Get Started",
-    Height = 116,
+    Height = 104,
     Callback = function() Window:Notify("Axel Hub", "Your dashboard is ready.", "info") end,
 })
 
