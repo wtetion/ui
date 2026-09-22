@@ -547,6 +547,33 @@ local function fadeIcon(object, duration)
     end
 end
 
+local function watchImage(imageLabel, onLoaded, onTimeout, timeout)
+    if not imageLabel then return end
+    local state = "pending"
+    local function refresh()
+        if not imageLabel.Parent then return end
+        local ok, loaded = pcall(function() return imageLabel.IsLoaded end)
+        if ok and loaded and state ~= "loaded" then
+            state = "loaded"
+            if type(onLoaded) == "function" then pcall(onLoaded) end
+        end
+    end
+    local function watchProperty(property)
+        pcall(function()
+            imageLabel:GetPropertyChangedSignal(property):Connect(refresh)
+        end)
+    end
+    watchProperty("IsLoaded")
+    watchProperty("Image")
+    task.delay(tonumber(timeout) or 4, function()
+        if imageLabel.Parent and state == "pending" then
+            state = "timeout"
+            if type(onTimeout) == "function" then pcall(onTimeout) end
+        end
+    end)
+    refresh()
+end
+
 local function icon(parent, value, size, tint)
     local config = type(value) == "table" and value or nil
     local source = config and (config.Image or config.Asset or config.Id or config.Source) or value
@@ -583,13 +610,11 @@ local function icon(parent, value, size, tint)
         imageLabel:GetPropertyChangedSignal("AnchorPoint"):Connect(syncFallback)
         imageLabel:GetPropertyChangedSignal("Size"):Connect(syncFallback)
         imageLabel:GetPropertyChangedSignal("ZIndex"):Connect(syncFallback)
-        imageLabel.ImageLoaded:Connect(function()
+        watchImage(imageLabel, function()
             if imageLabel.Parent and fallback.Parent then imageLabel.Visible = true; fallback.Visible = false end
-        end)
-        imageLabel.ImageFailed:Connect(function()
+        end, function()
             if imageLabel.Parent and fallback.Parent then imageLabel.Visible = false; fallback.Visible = true end
         end)
-        if imageLabel.IsLoaded then imageLabel.Visible = true; fallback.Visible = false end
         return imageLabel
     end
     return vectorIcon(parent, canonicalIcon(sourceText), iconSize, iconTint)
@@ -1721,9 +1746,16 @@ function AxelUI.TabMethods:AddHero(data)
     local bannerTextZ = math.max(tonumber(picture.ZIndex) or 0, tonumber(shade.ZIndex) or 0) + 2
     local fallback = textLabel(banner, data.FallbackText or "AXEL HUB", 11, source and self.Window.Theme.Muted or self.Window.Theme.Accent2, true)
     fallback.AnchorPoint = Vector2.new(0.5, 0.5); fallback.Position = UDim2.fromScale(0.72, 0.5); fallback.Size = UDim2.fromOffset(150, 18); fallback.TextXAlignment = Enum.TextXAlignment.Center; fallback.Visible = source == nil; fallback.ZIndex = bannerTextZ
-    pcall(function()
-        connect(self.Window, picture.ImageFailed, function() picture.Visible = false; shade.BackgroundTransparency = 0.04; fallback.Visible = true end)
-    end)
+    if source then
+        watchImage(picture, function()
+            picture.Visible = true
+            fallback.Visible = false
+        end, function()
+            picture.Visible = false
+            shade.BackgroundTransparency = 0.04
+            fallback.Visible = true
+        end)
+    end
     local title = textLabel(banner, data.BannerTitle or data.Title or "Customize your experience", 14, self.Window.Theme.Text, true)
     title.Position = UDim2.fromOffset(14, 13); title.Size = UDim2.new(0.62, 0, 0, 22); title.ZIndex = bannerTextZ
     local content = textLabel(banner, data.Content or data.Description or "Simple. Powerful. Yours.", 10, self.Window.Theme.SubText, false)
@@ -2108,13 +2140,16 @@ function AxelUI.SectionMethods:AddBanner(data)
     fallback.TextXAlignment = Enum.TextXAlignment.Center
     fallback.ZIndex = (tonumber(shade.ZIndex) or tonumber(picture.ZIndex) or 0) + 2
     fallback.Visible = source == nil
-    pcall(function()
-        connect(self.Window, picture.ImageFailed, function()
+    if source then
+        watchImage(picture, function()
+            picture.Visible = true
+            fallback.Visible = false
+        end, function()
             picture.Visible = false
             shade.BackgroundTransparency = 0.08
             fallback.Visible = true
         end)
-    end)
+    end
     local title = textLabel(holder, data.Title or data.Name or "Welcome", 14, self.Window.Theme.Text, true)
     local bannerTextZ = math.max(tonumber(picture.ZIndex) or 0, tonumber(shade.ZIndex) or 0) + 2
     title.Position = UDim2.fromOffset(14, 14); title.Size = UDim2.new(1, -28, 0, 22); title.ZIndex = bannerTextZ
@@ -2174,12 +2209,15 @@ function AxelUI.SectionMethods:AddImage(data)
     fallback.TextXAlignment = Enum.TextXAlignment.Center
     fallback.ZIndex = 2
     fallback.Visible = source == nil
-    pcall(function()
-        connect(self.Window, picture.ImageFailed, function()
+    if source then
+        watchImage(picture, function()
+            picture.Visible = true
+            fallback.Visible = false
+        end, function()
             picture.Visible = false
             fallback.Visible = true
         end)
-    end)
+    end
     if data.Caption then
         local caption = textLabel(holder, data.Caption, 10, self.Window.Theme.SubText, false)
         caption.Position = UDim2.new(0, 8, 1, -24)
@@ -3237,10 +3275,12 @@ function AxelUI.new(options)
         local player = Players.LocalPlayer
         if player then avatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100) end
     end)
-    pcall(function()
-        avatar.ImageLoaded:Connect(function() avatarFallback.Visible = false end)
-        avatar.ImageFailed:Connect(function() avatar.Visible = false; avatarFallback.Visible = true end)
-        if avatar.IsLoaded then avatarFallback.Visible = false end
+    watchImage(avatar, function()
+        avatar.Visible = true
+        avatarFallback.Visible = false
+    end, function()
+        avatar.Visible = false
+        avatarFallback.Visible = true
     end)
     local profileName = textLabel(profile, Players.LocalPlayer and Players.LocalPlayer.DisplayName or "Axel User", 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 8); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
     local profileState = textLabel(profile, "Ready to play", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 27); profileState.Size = UDim2.new(1, -54, 0, 14)
@@ -3321,19 +3361,16 @@ function AxelUI.new(options)
     local touchIcon = icon(avatarPlate, "star", 19, self.Theme.Accent2)
     touchIcon.AnchorPoint = Vector2.new(0.5, 0.5); touchIcon.Position = UDim2.fromScale(0.5, 0.5); touchIcon.ZIndex = 253
     if self.ProfileAvatar then
-        pcall(function()
-            if self.ProfileAvatar.IsLoaded and self.ProfileAvatar.Image ~= "" then
-                restoreAvatar.Image = self.ProfileAvatar.Image
+        watchImage(self.ProfileAvatar, function()
+            local imageOk, image = pcall(function() return self.ProfileAvatar.Image end)
+            if imageOk and image ~= "" then
+                restoreAvatar.Image = image
                 restoreAvatar.Visible = true
                 touchIcon.Visible = false
             end
-        end)
-        connect(self, self.ProfileAvatar.ImageLoaded, function()
-            if self.ProfileAvatar.Image ~= "" then
-                restoreAvatar.Image = self.ProfileAvatar.Image
-                restoreAvatar.Visible = true
-                touchIcon.Visible = false
-            end
+        end, function()
+            restoreAvatar.Visible = false
+            touchIcon.Visible = true
         end)
     end
     self.RestoreAvatar = restoreAvatar
@@ -3508,7 +3545,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.6
+AxelUI.Version = 6.7
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
