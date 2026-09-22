@@ -1,4 +1,6 @@
 -- AxelUI dashboard showcase
+-- Entry point: run this file to build the dashboard. Running only the library
+-- returns the API module; it does not add tabs or example controls.
 -- The old example called loadstring(...) immediately, so a missing URL or a
 -- non-executor environment produced: "attempt to call a nil value" on line 3.
 -- The GitHub URL below is the primary source. The bundled library is used as a
@@ -12,7 +14,7 @@ local function hasMethods(owner, names)
 end
 
 local function supportsShowcase(library)
-    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.5 then return false end
+    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.6 then return false end
     return hasMethods(library, {
         "CreateWindow", "AddTab", "Notify", "SetStatus", "SetGlass", "SetTheme",
         "SetFont", "SetBackground", "SaveConfig", "LoadConfig", "SetOpen", "Toggle",
@@ -57,7 +59,7 @@ local function loadAxelUI()
         local compiledOk, library = pcall(function() return compiler(source)() end)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.5 status launcher, animated gold controls or complete showcase API. Upload the bundled v6.5 library to that path.")
+            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.6 empty-state recovery, status launcher or full showcase API. Upload the bundled v6.6 library to that path.")
         else
             warn("[AxelUI] GitHub source could not be compiled: " .. tostring(library))
         end
@@ -84,7 +86,7 @@ end
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
 if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v6.5 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
+    warn("[AxelUI] No compatible library found. Use the bundled v6.6 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
     return
 end
 
@@ -122,7 +124,7 @@ local Window = AxelUI.CreateWindow({
     Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 6.5  •  Preparing your workspace",
+    LoadingSubtitle = "AxelUI 6.6  •  Preparing your workspace",
 })
 
 -- Home follows the reference composition: hero, pill tabs, then two columns of cards.
