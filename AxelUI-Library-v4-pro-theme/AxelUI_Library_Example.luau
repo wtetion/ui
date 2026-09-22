@@ -3,18 +3,34 @@
 -- non-executor environment produced: "attempt to call a nil value" on line 3.
 -- The GitHub URL below is the primary source. The bundled library is used as a
 -- fallback if that path still serves an older AxelUI version.
+local function hasMethods(owner, names)
+    if type(owner) ~= "table" then return false end
+    for _, name in ipairs(names) do
+        if type(owner[name]) ~= "function" then return false end
+    end
+    return true
+end
+
 local function supportsShowcase(library)
-    return type(library) == "table"
-        and type(library.CreateWindow) == "function"
-        and type(library.TabMethods) == "table"
-        and type(library.TabMethods.AddHero) == "function"
-        and type(library.TabMethods.AddPill) == "function"
-        and type(library.SectionMethods) == "table"
-        and type(library.SectionMethods.AddActionBar) == "function"
-        and type(library.SectionMethods.CreateToggle) == "function"
-        and type(library.SectionMethods.CreateMultiDropdown) == "function"
-        and type(library.SetGlass) == "function"
-        and tonumber(library.Version) ~= nil and tonumber(library.Version) >= 6.3
+    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.4 then return false end
+    return hasMethods(library, {
+        "CreateWindow", "AddTab", "Notify", "SetStatus", "SetGlass", "SetTheme",
+        "SetFont", "SetBackground", "SaveConfig", "LoadConfig", "SetOpen", "Toggle",
+        "SetMaximized", "SetToggleKeybind", "ConfirmUnload", "Unload", "RegisterIcon",
+        "RegisterIcons",
+    })
+        and hasMethods(library.TabMethods, {
+            "AddHero", "AddPill", "AddSection", "AddSubTab", "SetBadge", "SetStatus",
+        })
+        and hasMethods(library.SectionMethods, {
+            "AddDescription", "AddText", "AddTextLabel", "AddLabel", "AddParagraph",
+            "AddBanner", "AddImage", "AddButton", "AddActionBar", "AddToggle", "AddSlider",
+            "AddDropdown", "AddMultiDropdown", "AddColorPicker", "AddInput", "AddKeybind",
+            "AddStatus", "AddDivider", "CreateToggle", "CreateSlider", "CreateDropdown",
+            "CreateMultiDropdown", "CreateButton", "CreateInput", "CreateKeybind",
+            "CreateColorPicker", "CreateImage", "CreateBanner", "CreateActionBar",
+            "CreateText", "CreateParagraph", "CreateLabel", "CreateDivider",
+        })
 end
 
 local function loadAxelUI()
@@ -41,7 +57,7 @@ local function loadAxelUI()
         local compiledOk, library = pcall(function() return compiler(source)() end)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.3 visual and animation fixes. Upload the bundled v6.3 library to that path.")
+            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.4 launcher, glass-surface or complete showcase API. Upload the bundled v6.4 library to that path.")
         else
             warn("[AxelUI] GitHub source could not be compiled: " .. tostring(library))
         end
@@ -68,7 +84,7 @@ end
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
 if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v6.3 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
+    warn("[AxelUI] No compatible library found. Use the bundled v6.4 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
     return
 end
 
@@ -78,6 +94,9 @@ local Window = AxelUI.CreateWindow({
     Footer = "v1.0.0\nReady when you are",
     GuiName = "AxelHubUI",
     ToggleKeybind = "RightControl",
+    -- Start on the centered Axel star launcher; clicking/tapping opens the UI.
+    StartMinimized = true,
+    RestoreButtonPosition = UDim2.new(0.5, -22, 0.5, -22),
     -- Set this when your executor stores AxelLogo.png in a subfolder.
     -- AssetFolder = "AxelUI",
     Theme = {
@@ -95,20 +114,15 @@ local Window = AxelUI.CreateWindow({
     -- Built-in logo renders from vector UI primitives; no font glyph or remote
     -- icon pack is needed. Pass an rbxassetid://... here for your own image.
     Logo = "star",
-    -- The shell is slightly translucent; page, cards and controls remain dark/opaque.
+    -- Only the shell and empty page backdrop are translucent. Sidebar, cards
+    -- and controls are explicitly solid for the reference look.
     Glass = { Enabled = true, Transparency = 0.24, AnimatedBorder = true, AnimationDuration = 3.2 },
     TabAnimation = true,
     TabAnimationDuration = 0.2,
     Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 6.3  •  Preparing your workspace",
-})
-
-Window:Notify({
-    Title = "Welcome to Axel Hub",
-    Content = "Search features from the top bar or choose a section from the sidebar.",
-    Type = "success",
+    LoadingSubtitle = "AxelUI 6.4  •  Preparing your workspace",
 })
 
 -- Home follows the reference composition: hero, pill tabs, then two columns of cards.
