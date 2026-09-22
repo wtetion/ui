@@ -1,11 +1,11 @@
 -- AxelUI dashboard showcase
 -- Replace YOUR_AXEL_UI_LIBRARY_URL with the URL where you host AxelUI_Library.luau.
-local AxelUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"))()
+local AxelUI = loadstring(game:HttpGet("YOUR_AXEL_UI_LIBRARY_URL"))()
 
 local Window = AxelUI.CreateWindow({
     Name = "Axel Hub",
     Subtitle = "Play Further",
-    Footer = "v1.0.0  •  Ready when you are",
+    Footer = "AxelUI 5.5  •  Ready when you are",
     GuiName = "AxelHubUI",
     ToggleKeybind = "RightControl",
     -- Set this when your executor stores AxelLogo.png in a subfolder.
@@ -23,7 +23,7 @@ local Window = AxelUI.CreateWindow({
     Background = "AxelLogo.png",
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "Preparing your workspace",
+    LoadingSubtitle = "AxelUI 5.5  •  Preparing your workspace",
 })
 
 Window:Notify({
@@ -34,7 +34,21 @@ Window:Notify({
 
 -- Home follows the reference composition: hero, pill tabs, then two columns of cards.
 local Home = Window:AddTab({ Name = "Home", Description = "Live status and quick actions", Icon = "home" })
-Home:AddHero({
+local function safeElement(owner, methodName, data)
+    local method = owner and owner[methodName]
+    if type(method) ~= "function" then
+        warn("[AxelUI] Missing method: " .. tostring(methodName) .. " (library is older than the example)")
+        return nil
+    end
+    local ok, result = pcall(method, owner, data)
+    if not ok then
+        warn("[AxelUI] " .. tostring(methodName) .. " failed: " .. tostring(result))
+        return nil
+    end
+    return result
+end
+
+safeElement(Home, "AddHero", {
     Image = "AxelLogo.png", -- replace with your own scenic rbxassetid/local image if desired
     WelcomeLabel = "Welcome to",
     WelcomeTitle = "Axel Hub",
@@ -47,17 +61,17 @@ Home:AddHero({
     Callback = function() Window:Notify("Axel Hub", "Your dashboard is ready.", "info") end,
 })
 
-Home:AddPill({ Name = "Overview", Active = true })
-Home:AddPill({ Name = "Player", Callback = function() Window:Notify("Overview", "Player tools are below.", "info") end })
-Home:AddPill({ Name = "World", Callback = function() Window:Notify("Overview", "World settings are below.", "info") end })
-Home:AddPill({ Name = "Visuals", Callback = function() Window:Notify("Overview", "Visual controls are below.", "info") end })
-Home:AddPill({ Name = "Utilities", Callback = function() Window:Notify("Overview", "Utility controls are below.", "info") end })
-Home:AddPill({ Name = "Configs", Callback = function() Window:Notify("Overview", "Configuration is below.", "info") end })
+safeElement(Home, "AddPill", { Name = "Overview", Active = true })
+safeElement(Home, "AddPill", { Name = "Player", Callback = function() Window:Notify("Overview", "Player tools are below.", "info") end })
+safeElement(Home, "AddPill", { Name = "World", Callback = function() Window:Notify("Overview", "World settings are below.", "info") end })
+safeElement(Home, "AddPill", { Name = "Visuals", Callback = function() Window:Notify("Overview", "Visual controls are below.", "info") end })
+safeElement(Home, "AddPill", { Name = "Utilities", Callback = function() Window:Notify("Overview", "Utility controls are below.", "info") end })
+safeElement(Home, "AddPill", { Name = "Configs", Callback = function() Window:Notify("Overview", "Configuration is below.", "info") end })
 
 local PlayerTools = Home:AddSection({ Name = "Player Tools", Description = "Fine tune your movement and abilities.", Side = "Left" })
 PlayerTools:AddToggle({ Name = "Enable Movement Mods", Description = "Unlock advanced movement options.", Icon = "running", Default = true })
-PlayerTools:AddSlider({ Name = "Walk Speed", Description = "Adjust the character movement speed.", Icon = "speed", Min = 1, Max = 50, Default = 16, Flag = "walk_speed" })
-PlayerTools:AddSlider({ Name = "Jump Power", Description = "Adjust the character jump strength.", Icon = "arrows", Min = 1, Max = 100, Default = 50, Flag = "jump_power" })
+PlayerTools:AddSlider({ Name = "Walk Speed", Icon = "speed", Min = 1, Max = 50, Default = 16, Flag = "walk_speed" })
+PlayerTools:AddSlider({ Name = "Jump Power", Icon = "arrows", Min = 1, Max = 100, Default = 50, Flag = "jump_power" })
 PlayerTools:AddToggle({ Name = "Infinite Jump", Description = "Keep going higher.", Icon = "move", Default = false })
 PlayerTools:AddToggle({ Name = "No Fall Damage", Description = "Land without limits.", Icon = "shield", Default = true })
 
@@ -65,24 +79,29 @@ local WorldSettings = Home:AddSection({ Name = "World Settings", Description = "
 WorldSettings:AddToggle({ Name = "Full Bright", Description = "Light up dark areas.", Icon = "star", Default = true })
 WorldSettings:AddToggle({ Name = "Remove Fog", Description = "See further, play clearer.", Icon = "eyeoff", Default = false })
 WorldSettings:AddDropdown({ Name = "Time of Day", Description = "Choose a world lighting preset.", Icon = "clock", Options = { "Day", "Sunset", "Night" }, Default = "Day" })
-WorldSettings:AddSlider({ Name = "Field of View", Description = "Tune the camera view angle.", Icon = "eye", Min = 40, Max = 120, Default = 70, Suffix = "°" })
+WorldSettings:AddSlider({ Name = "Field of View", Icon = "eye", Min = 40, Max = 120, Default = 70, Suffix = "°" })
 WorldSettings:AddToggle({ Name = "Show Hitboxes", Description = "Visualize important objects.", Icon = "grid", Default = false })
 
 local Config = Home:AddSection({ Name = "Configuration", Description = "Save and load your favorite setups.", Side = "Left" })
 Config:AddDropdown({ Name = "Preset", Icon = "folder", Options = { "Default", "Farm", "Combat" }, Default = "Default" })
-Config:AddButton({ Name = "Save", Description = "Persist all flagged settings.", Icon = "save", Callback = function()
-    local ok, err = Window:SaveConfig("axelhub-demo")
-    Window:Notify("Configuration", ok and "Configuration saved." or tostring(err), ok and "success" or "error")
-end })
-Config:AddButton({ Name = "Load", Description = "Restore your last saved setup.", Icon = "download", Callback = function()
-    local ok, err = Window:LoadConfig("axelhub-demo")
-    Window:Notify("Configuration", ok and "Configuration loaded." or tostring(err), ok and "success" or "error")
-end })
+safeElement(Config, "AddActionBar", { Actions = {
+    { Name = "Save", Primary = true, Callback = function()
+        local ok, err = Window:SaveConfig("axelhub-demo")
+        Window:Notify("Configuration", ok and "Configuration saved." or tostring(err), ok and "success" or "error")
+    end },
+    { Name = "Load", Callback = function()
+        local ok, err = Window:LoadConfig("axelhub-demo")
+        Window:Notify("Configuration", ok and "Configuration loaded." or tostring(err), ok and "success" or "error")
+    end },
+    { Name = "...", Callback = function() Window:Notify("Configuration", "More configuration actions are available through the library API.", "info") end },
+} })
 
 local Quick = Home:AddSection({ Name = "Quick Actions", Description = "Common features, one click away.", Side = "Right" })
-Quick:AddButton({ Name = "Rejoin", Icon = "refresh", Callback = function() Window:Notify("Quick Action", "Rejoin requested.", "info") end })
-Quick:AddButton({ Name = "Reset Character", Icon = "user", Callback = function() Window:Notify("Quick Action", "Character reset requested.", "info") end })
-Quick:AddButton({ Name = "Server Hop", Icon = "server", Callback = function() Window:Notify("Quick Action", "Server hop requested.", "info") end })
+safeElement(Quick, "AddActionBar", { Actions = {
+    { Name = "Rejoin", Callback = function() Window:Notify("Quick Action", "Rejoin requested.", "info") end },
+    { Name = "Reset Character", Callback = function() Window:Notify("Quick Action", "Character reset requested.", "info") end },
+    { Name = "Server Hop", Callback = function() Window:Notify("Quick Action", "Server hop requested.", "info") end },
+} })
 
 -- Sidebar pages keep the library useful beyond the visual showcase.
 local Player = Window:AddTab({ Name = "Player", Description = "Movement and automation", Icon = "player", Badge = "LIVE" })
