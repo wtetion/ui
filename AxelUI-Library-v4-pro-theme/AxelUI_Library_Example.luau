@@ -51,17 +51,28 @@ local function loadAxelUI()
         return nil
     end
 
+    local function compileAndRun(source)
+        local compileOk, chunk, compileError = pcall(compiler, source)
+        if not compileOk then return false, nil, "compiler threw: " .. tostring(chunk) end
+        if type(chunk) ~= "function" then
+            return false, nil, tostring(compileError or "compiler returned " .. type(chunk) .. " instead of a function")
+        end
+        local runOk, result = pcall(chunk)
+        if not runOk then return false, nil, "library runtime error: " .. tostring(result) end
+        return true, result, nil
+    end
+
     -- User supplied raw GitHub URL. This is the same source format accepted by
     -- loadstring(game:HttpGet(url))(), so use it as the primary source.
     local hostedUrl = "https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"
     local httpOk, source = pcall(function() return game:HttpGet(hostedUrl) end)
     if httpOk and type(source) == "string" and #source > 0 then
-        local compiledOk, library = pcall(function() return compiler(source)() end)
+        local compiledOk, library, compileError = compileAndRun(source)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
             warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.8 image retry fix or full showcase API. Upload the bundled v6.8 library to that path.")
         else
-            warn("[AxelUI] GitHub source could not be compiled: " .. tostring(library))
+            warn("[AxelUI] GitHub source could not be loaded: " .. tostring(compileError or library))
         end
     else
         warn("[AxelUI] GitHub download failed: " .. tostring(source))
@@ -71,12 +82,12 @@ local function loadAxelUI()
     if type(readfile) == "function" then
         local fileOk, localSource = pcall(readfile, "AxelUI_Library.luau")
         if fileOk and type(localSource) == "string" and #localSource > 0 then
-            local compiledOk, library = pcall(function() return compiler(localSource)() end)
+            local compiledOk, library, compileError = compileAndRun(localSource)
             if compiledOk and supportsShowcase(library) then return library end
             if compiledOk and type(library) == "table" then
                 warn("[AxelUI] Local file is an older AxelUI version and does not support the full dashboard example.")
             else
-                warn("[AxelUI] Local library could not be compiled: " .. tostring(library))
+                warn("[AxelUI] Local library could not be loaded: " .. tostring(compileError or library))
             end
         end
     end
