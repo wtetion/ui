@@ -1828,10 +1828,10 @@ function AxelUI.TabMethods:LayoutPills()
     -- Give the pills a little more room from the hero and from the card row
     -- below so the outlines don't look crowded or collide with nearby edges.
     local pillY = heroHeight > 0 and (heroTop + heroHeight + 34) or 74
-    local bodyY = heroHeight > 0 and (heroTop + heroHeight + 92) or 122
-    local bodyBottom = heroHeight > 0 and (heroTop + heroHeight + 102) or 132
+    local bodyY = heroHeight > 0 and (heroTop + heroHeight + 92) or 132
+    local bodyBottom = heroHeight > 0 and (heroTop + heroHeight + 102) or 142
     self.PillBar.Position = UDim2.fromOffset(mobile and 8 or 13, pillY)
-    self.PillBar.Size = UDim2.new(1, mobile and -16 or -26, 0, 34)
+    self.PillBar.Size = UDim2.new(1, mobile and -16 or -26, 0, 42)
     self.PageBody.Position = UDim2.fromOffset(mobile and 8 or 13, bodyY)
     self.PageBody.Size = UDim2.new(1, mobile and -16 or -26, 1, -bodyBottom)
 end
@@ -1859,14 +1859,24 @@ function AxelUI.TabMethods:AddPill(data)
         self.PillBar = new("ScrollingFrame", {
             Active = true,
             AutomaticCanvasSize = Enum.AutomaticSize.X,
-            BackgroundTransparency = 1,
+            BackgroundColor3 = self.Window.Theme.Surface,
+            BackgroundTransparency = 0,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(),
+            ClipsDescendants = true,
             ScrollBarThickness = 0,
-            Size = UDim2.new(1, -26, 0, 34),
+            Size = UDim2.new(1, -26, 0, 42),
             Position = UDim2.fromOffset(13, 50),
             ZIndex = 3,
         }, self.Page)
+        corner(self.PillBar, 12)
+        stroke(self.PillBar, self.Window.Theme.Border, 0.34, 1)
+        new("UIPadding", {
+            PaddingLeft = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 10),
+            PaddingTop = UDim.new(0, 6),
+            PaddingBottom = UDim.new(0, 6),
+        }, self.PillBar)
         new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }, self.PillBar)
         self.Pills = {}
     end
