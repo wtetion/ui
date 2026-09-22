@@ -94,6 +94,57 @@ local ICONS = {
     list = "7733970318",
     plus = "7733715400",
     minus = "7743878496",
+    -- Expanded Oxide-style semantic icon set.
+    menu = "10734896206",
+    grid = "10734950309",
+    sliders = "10734897102",
+    swords = "10747384394",
+    sword = "10747384394",
+    crosshair = "10723434538",
+    aim = "10723434538",
+    fire = "10723415285",
+    flame = "10723415285",
+    star = "10734924532",
+    sparkle = "10723422246",
+    user = "10747387118",
+    person = "77052607579460",
+    team = "10747387298",
+    group = "10747387298",
+    visible = "10709790644",
+    render = "10709790644",
+    esp = "10709790644",
+    eyeoff = "10709790497",
+    hidden = "10709790497",
+    world = "10709778567",
+    compass = "10709790373",
+    map = "84513890895579",
+    arrows = "10723422998",
+    heart = "10723415389",
+    alert = "10723345067",
+    warning = "10747387522",
+    lock = "10723417148",
+    unlock = "10723422607",
+    folder = "10709791437",
+    save = "10709791258",
+    clipboard = "10709751190",
+    play = "10723422607",
+    volume = "10723421745",
+    camera = "10709778567",
+    clock = "10723345037",
+    time = "10723345037",
+    code = "10709751190",
+    terminal = "10709751190",
+    bug = "10723415903",
+    layers = "10723417148",
+    inventory = "14118896735",
+    backpack = "10723415285",
+    gift = "10723415389",
+    gem = "10723421745",
+    coin = "13522871708",
+    skull = "10747384394",
+    teleport = "10090587519",
+    running = "10723422998",
+    favorite = "10734924532",
 }
 
 local function copyTheme(theme)
@@ -329,6 +380,11 @@ function AxelUI:_makeRow(parent, data, height)
     }, parent)
     corner(row, 5)
     local rowStroke = stroke(row, data.Primary and self.Theme.Accent2 or self.Theme.Border, 0.4, 1)
+    new("UIGradient", {
+        Color = ColorSequence.new(data.Primary and self.Theme.Accent or self.Theme.Surface2, data.Primary and self.Theme.Accent2 or self.Theme.Element),
+        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, data.Primary and 0.02 or 0.04), NumberSequenceKeypoint.new(1, 0.22) }),
+        Rotation = 0,
+    }, row)
     local inner = new("Frame", {
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 1, 0),
@@ -651,18 +707,23 @@ function AxelUI:_applyResponsive()
         local width = math.max(300, math.min(480, viewport.X - 18))
         local height = math.max(360, math.min(720, viewport.Y - 26))
         self.Window.Size = UDim2.fromOffset(width, height)
-        self.Sidebar.Size = UDim2.new(0, 64, 1, -50)
+        self.Header.Position = UDim2.fromOffset(64, 0)
+        self.Header.Size = UDim2.new(1, -64, 0, 50)
+        self.Sidebar.Position = UDim2.fromOffset(0, 0)
+        self.Sidebar.Size = UDim2.new(0, 64, 1, 0)
         self.PageHolder.Position = UDim2.fromOffset(64, 50)
         self.PageHolder.Size = UDim2.new(1, -64, 1, -50)
         self.NavTitle.Visible = false
         self.Footer.Visible = false
+        self.ProfileCard.Visible = false
+        self.Brand.Visible = false
         self.HeaderSubtitle.Visible = false
         self.FpsText.Visible = false
         self.StatusDot.Visible = false
         self.StatusText.Visible = false
-        self.Search.Position = UDim2.fromOffset(120, 10)
-        self.Search.Size = UDim2.new(1, -206, 0, 30)
-        self.SearchIcon.Position = UDim2.new(1, -96, 0, 17)
+        self.Search.Position = UDim2.fromOffset(8, 9)
+        self.Search.Size = UDim2.new(1, -48, 0, 32)
+        self.SearchIcon.Position = UDim2.new(1, -30, 0, 18)
         self.TabTitle.TextSize = 13
         self.TabSubtitle.Visible = false
         self.TabHeader.Size = UDim2.new(1, 0, 0, 38)
@@ -672,22 +733,27 @@ function AxelUI:_applyResponsive()
         self.NotificationHolder.Position = UDim2.new(1, -10, 0, 58)
     else
         self.Window.Size = self.DesktopSize or UDim2.fromOffset(820, 560)
-        self.Sidebar.Size = UDim2.new(0, 170, 1, -50)
-        self.PageHolder.Position = UDim2.fromOffset(170, 50)
-        self.PageHolder.Size = UDim2.new(1, -170, 1, -50)
+        self.Header.Position = UDim2.fromOffset(170, 0)
+        self.Header.Size = UDim2.new(1, -170, 0, 58)
+        self.Sidebar.Position = UDim2.fromOffset(0, 0)
+        self.Sidebar.Size = UDim2.new(0, 170, 1, 0)
+        self.PageHolder.Position = UDim2.fromOffset(170, 58)
+        self.PageHolder.Size = UDim2.new(1, -170, 1, -58)
         self.NavTitle.Visible = true
         self.Footer.Visible = true
+        self.ProfileCard.Visible = true
+        self.Brand.Visible = true
         self.HeaderSubtitle.Visible = true
         self.FpsText.Visible = true
         self.StatusDot.Visible = true
         self.StatusText.Visible = true
-        self.Search.Position = UDim2.fromOffset(245, 10)
-        self.Search.Size = UDim2.fromOffset(280, 30)
-        self.SearchIcon.Position = UDim2.fromOffset(500, 17)
+        self.Search.Position = UDim2.fromOffset(16, 12)
+        self.Search.Size = UDim2.fromOffset(300, 34)
+        self.SearchIcon.Position = UDim2.fromOffset(292, 21)
         self.TabTitle.TextSize = 15
         self.TabSubtitle.Visible = true
-        self.TabHeader.Size = UDim2.new(1, 0, 0, 42)
-        self.TabTitle.Position = UDim2.fromOffset(16, 3)
+        self.TabHeader.Size = UDim2.new(1, 0, 0, 46)
+        self.TabTitle.Position = UDim2.fromOffset(18, 5)
         self.TouchButton.Visible = false
         self.NotificationHolder.Size = UDim2.fromOffset(300, 0)
         self.NotificationHolder.Position = UDim2.new(1, -18, 0, 62)
@@ -698,6 +764,13 @@ function AxelUI:_applyResponsive()
         if tab.Subtitle then tab.Subtitle.Visible = not mobile end
         if tab.IconHolder then
             tab.IconHolder.Position = UDim2.fromOffset(mobile and 20 or 12, 7)
+        end
+        if tab.Hero and tab.PageBody and not tab.SubTabBar then
+            local heroHeight = mobile and (tab.HeroMobileHeight or tab.HeroHeight or 116) or (tab.HeroHeight or 116)
+            tab.Hero.Size = UDim2.new(1, mobile and -16 or -26, 0, heroHeight)
+            tab.Hero.Position = UDim2.fromOffset(mobile and 8 or 13, 50)
+            tab.PageBody.Position = UDim2.fromOffset(mobile and 8 or 13, 60 + heroHeight)
+            tab.PageBody.Size = UDim2.new(1, mobile and -16 or -26, 1, -(70 + heroHeight))
         end
         if tab.ColumnLayout then
             tab.ColumnLayout.FillDirection = mobile and Enum.FillDirection.Vertical or Enum.FillDirection.Horizontal
@@ -806,6 +879,11 @@ local function makeSubTabCard(window, parent, title)
     }, parent)
     corner(card, 8)
     stroke(card, window.Theme.Border, 0.28, 1)
+    new("UIGradient", {
+        Color = ColorSequence.new(window.Theme.Surface, window.Theme.Background),
+        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.16) }),
+        Rotation = 90,
+    }, card)
     local cardHeader = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32) }, card)
     pad(cardHeader, 12, 12, 6, 3)
     local cardTitle = textLabel(cardHeader, title, 13, window.Theme.Text, true)
@@ -917,6 +995,49 @@ end
 function AxelUI.TabMethods:SetStatus(text, color)
     self.Status = { Text = tostring(text or "Ready"), Color = color or self.Window.Theme.Success }
     if self.Window.ActiveTab == self then self.Window:SetStatus(self.Status.Text, self.Status.Color) end
+end
+
+-- Full-width dashboard hero. It sits above the two-column cards so a tab can
+-- reproduce the polished dashboard composition without breaking the Section API.
+function AxelUI.TabMethods:AddHero(data)
+    data = data or {}
+    local height = tonumber(data.Height) or 116
+    local hero = new("Frame", {
+        BackgroundColor3 = self.Window.Theme.Element,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(13, 50),
+        Size = UDim2.new(1, -26, 0, height),
+        ClipsDescendants = true,
+        ZIndex = 2,
+    }, self.Page)
+    corner(hero, 10); stroke(hero, self.Window.Theme.Border, 0.14, 1)
+    local source = imageSource(data.Image or data.Source or data.Asset)
+    local picture = new("ImageLabel", { BackgroundTransparency = 1, Image = source or "", ImageTransparency = tonumber(data.ImageTransparency) or 0.18, ScaleType = data.ScaleType or Enum.ScaleType.Crop, Size = UDim2.fromScale(1, 1), ZIndex = 3 }, hero)
+    local shade = new("Frame", { BackgroundColor3 = self.Window.Theme.Background, BackgroundTransparency = 0.18, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 4 }, hero)
+    new("UIGradient", { Color = ColorSequence.new(self.Window.Theme.Background, self.Window.Theme.Element), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.04), NumberSequenceKeypoint.new(0.58, 0.22), NumberSequenceKeypoint.new(1, 0.78) }), Rotation = 0 }, shade)
+    local fallback = textLabel(hero, data.FallbackText or "Image unavailable", 10, self.Window.Theme.SubText, true)
+    fallback.AnchorPoint = Vector2.new(0.5, 0.5); fallback.Position = UDim2.fromScale(0.78, 0.5); fallback.Size = UDim2.fromOffset(150, 18); fallback.TextXAlignment = Enum.TextXAlignment.Center; fallback.Visible = source == nil; fallback.ZIndex = 5
+    pcall(function()
+        connect(self.Window, picture.ImageFailed, function() picture.Visible = false; shade.BackgroundTransparency = 0.08; fallback.Visible = true end)
+    end)
+    local title = textLabel(hero, data.Title or "Customize your experience", 15, self.Window.Theme.Text, true)
+    title.Position = UDim2.fromOffset(16, 17); title.Size = UDim2.new(0.58, 0, 0, 24); title.ZIndex = 6
+    local content = textLabel(hero, data.Content or data.Description or "A smoother way to play.", 10, self.Window.Theme.SubText, false)
+    content.Position = UDim2.fromOffset(16, 44); content.Size = UDim2.new(0.54, 0, 0, 32); content.TextWrapped = true; content.ZIndex = 6
+    local action
+    if data.Button or data.ActionText then
+        action = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Accent, BorderSizePixel = 0, Text = tostring(data.Button or data.ActionText), TextColor3 = self.Window.Theme.Background, TextSize = 10, FontFace = fontFace(nil, true), Size = UDim2.fromOffset(104, 28), Position = UDim2.fromOffset(16, height - 42), ZIndex = 6 }, hero)
+        corner(action, 7); pressAnimation(self.Window, action)
+        connect(self.Window, action.MouseButton1Click, function() if type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback) end) end end)
+    end
+    self.Hero, self.HeroImage, self.HeroFallback, self.HeroHeight, self.HeroMobileHeight = hero, picture, fallback, height, tonumber(data.MobileHeight) or math.min(136, height + 16)
+    self.Window:_registerSearch(hero, tostring(data.Title or "") .. " " .. tostring(data.Content or ""))
+    if self.PageBody then
+        self.PageBody.Position = UDim2.fromOffset(13, 60 + height)
+        self.PageBody.Size = UDim2.new(1, -26, 1, -(70 + height))
+    end
+    if self.Window._applyResponsive then self.Window:_applyResponsive() end
+    return { Instance = hero, Image = picture, Fallback = fallback, Title = title, Content = content, Button = action }
 end
 
 function AxelUI.TabMethods:SelectSubTab(subtab)
@@ -1033,6 +1154,11 @@ function AxelUI.TabMethods:AddSection(data)
     }, parent)
     corner(card, 7)
     stroke(card, self.Window.Theme.Border, 0.28, 1)
+    new("UIGradient", {
+        Color = ColorSequence.new(self.Window.Theme.Surface, self.Window.Theme.Background),
+        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.16) }),
+        Rotation = 90,
+    }, card)
     local headerHeight = data.Description ~= "" and 53 or 35
     local header = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, headerHeight) }, card)
     pad(header, 12, 12, 8, 4)
@@ -1752,16 +1878,21 @@ function AxelUI.new(options)
         self:SetBackground(options.Background or options.BackgroundImage, options.BackgroundTransparency, options.BackgroundScaleType)
     end
 
-    local header = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 50) }, self.Window)
+    local header = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 0), Size = UDim2.new(1, -170, 0, 58), ZIndex = 5 }, self.Window)
     self.Header = header
-    local logoHolder = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.fromOffset(32, 32), Position = UDim2.fromOffset(10, 9) }, header)
+    new("UIGradient", {
+        Color = ColorSequence.new(self.Theme.Surface, self.Theme.Background),
+        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.2) }),
+        Rotation = 0,
+    }, header)
+    local logoHolder = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.fromOffset(36, 36), Position = UDim2.fromOffset(16, 15) }, header)
     corner(logoHolder, 8); icon(logoHolder, options.Logo or "dashboard", 20, self.Theme.Accent2).Position = UDim2.fromOffset(6, 6)
-    local brand = textLabel(header, options.Name or "Axel UI", 14, self.Theme.Text, true); brand.Position = UDim2.fromOffset(52, 5); brand.Size = UDim2.fromOffset(150, 20)
-    local subtitle = textLabel(header, options.Subtitle or "Clean, animated interface", 10, self.Theme.SubText, false); subtitle.Position = UDim2.fromOffset(52, 25); subtitle.Size = UDim2.fromOffset(180, 16)
+    local brand = textLabel(header, options.Name or "Axel UI", 14, self.Theme.Text, true); brand.Position = UDim2.fromOffset(58, 15); brand.Size = UDim2.fromOffset(150, 20)
+    local subtitle = textLabel(header, options.Subtitle or "Clean, animated interface", 10, self.Theme.SubText, false); subtitle.Position = UDim2.fromOffset(58, 35); subtitle.Size = UDim2.fromOffset(180, 16)
     self.Brand, self.HeaderSubtitle = brand, subtitle
-    local search = new("TextBox", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, ClearTextOnFocus = false, PlaceholderText = "Search", PlaceholderColor3 = self.Theme.Muted, Text = "", TextColor3 = self.Theme.Text, TextSize = 12, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(280, 30), Position = UDim2.new(0, 245, 0, 10) }, header)
-    corner(search, 5); stroke(search, self.Theme.Border, 0.25, 1); pad(search, 10, 30, 0, 0)
-    self.SearchIcon = icon(header, "search", 15, self.Theme.Muted); self.SearchIcon.Position = UDim2.new(0, 500, 0, 17)
+    local search = new("TextBox", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, ClearTextOnFocus = false, PlaceholderText = "Search features, settings, or help...", PlaceholderColor3 = self.Theme.Muted, Text = "", TextColor3 = self.Theme.Text, TextSize = 12, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(300, 34), Position = UDim2.fromOffset(16, 12) }, header)
+    corner(search, 6); stroke(search, self.Theme.Border, 0.25, 1); pad(search, 10, 34, 0, 0)
+    self.SearchIcon = icon(header, "search", 15, self.Theme.Muted); self.SearchIcon.Position = UDim2.fromOffset(292, 21)
     self.Search = search
     self.StatusDot = new("Frame", { BackgroundColor3 = self.Theme.Success, BorderSizePixel = 0, Size = UDim2.fromOffset(7, 7), Position = UDim2.new(1, -140, 0, 21) }, header); corner(self.StatusDot, 4)
     self.StatusText = textLabel(header, "Ready", 10, self.Theme.Success, true); self.StatusText.Position = UDim2.new(1, -126, 0, 14); self.StatusText.Size = UDim2.fromOffset(76, 20); self.StatusText.TextXAlignment = Enum.TextXAlignment.Left
@@ -1773,20 +1904,36 @@ function AxelUI.new(options)
     pressAnimation(self, unloadButton)
     connect(self, unloadButton.MouseButton1Click, function() self:Unload() end)
 
-    local sidebar = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 50), Size = UDim2.new(0, 170, 1, -50) }, self.Window)
+    local sidebar = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.new(0, 170, 1, 0), ZIndex = 6 }, self.Window)
     self.Sidebar = sidebar
-    local navTitle = textLabel(sidebar, "NAVIGATION", 9, self.Theme.Muted, true); navTitle.Position = UDim2.fromOffset(14, 13); navTitle.Size = UDim2.new(1, -28, 0, 16)
+    new("Frame", { BackgroundColor3 = self.Theme.Border, BackgroundTransparency = 0.25, BorderSizePixel = 0, Position = UDim2.new(1, -1, 0, 0), Size = UDim2.new(0, 1, 1, 0), ZIndex = 7 }, sidebar)
+    logoHolder.Parent = sidebar; logoHolder.Position = UDim2.fromOffset(18, 16); logoHolder.Size = UDim2.fromOffset(38, 38)
+    brand.Parent = sidebar; brand.Position = UDim2.fromOffset(66, 15); brand.Size = UDim2.new(1, -78, 0, 20)
+    subtitle.Parent = sidebar; subtitle.Position = UDim2.fromOffset(66, 36); subtitle.Size = UDim2.new(1, -78, 0, 16)
+    new("Frame", { BackgroundColor3 = self.Theme.Border, BackgroundTransparency = 0.35, BorderSizePixel = 0, Position = UDim2.fromOffset(14, 70), Size = UDim2.new(1, -28, 0, 1) }, sidebar)
+    local navTitle = textLabel(sidebar, "NAVIGATION", 9, self.Theme.Muted, true); navTitle.Position = UDim2.fromOffset(14, 84); navTitle.Size = UDim2.new(1, -28, 0, 16)
     self.NavTitle = navTitle
-    self.TabList = new("ScrollingFrame", { Active = true, AutomaticCanvasSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), Position = UDim2.fromOffset(8, 36), ScrollBarImageColor3 = self.Theme.Accent, ScrollBarThickness = 2, Size = UDim2.new(1, -16, 1, -85) }, sidebar)
+    self.TabList = new("ScrollingFrame", { Active = true, AutomaticCanvasSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), Position = UDim2.fromOffset(8, 108), ScrollBarImageColor3 = self.Theme.Accent, ScrollBarThickness = 2, Size = UDim2.new(1, -16, 1, -188) }, sidebar)
     new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, self.TabList)
-    local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -36); footer.Size = UDim2.new(1, -28, 0, 20)
+    local profile = new("Frame", { BackgroundColor3 = self.Theme.Element, BackgroundTransparency = 0.15, BorderSizePixel = 0, Position = UDim2.new(0, 12, 1, -104), Size = UDim2.new(1, -24, 0, 48) }, sidebar)
+    corner(profile, 8); stroke(profile, self.Theme.Border, 0.55, 1)
+    local avatar = new("ImageLabel", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Size = UDim2.fromOffset(30, 30), Position = UDim2.fromOffset(8, 9), Image = "", ScaleType = Enum.ScaleType.Crop }, profile)
+    corner(avatar, 15)
+    pcall(function()
+        local player = Players.LocalPlayer
+        if player then avatar.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100) end
+    end)
+    local profileName = textLabel(profile, Players.LocalPlayer and Players.LocalPlayer.DisplayName or "Axel User", 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 7); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
+    local profileState = textLabel(profile, "Ready to play", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 25); profileState.Size = UDim2.new(1, -54, 0, 14)
+    local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -42); footer.Size = UDim2.new(1, -28, 0, 20)
+    self.ProfileCard, self.ProfileAvatar, self.ProfileName = profile, avatar, profileName
     self.Footer = footer
 
-    self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 50), Size = UDim2.new(1, -170, 1, -50) }, self.Window)
-    local tabHeader = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 42) }, self.PageHolder)
+    self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 58), Size = UDim2.new(1, -170, 1, -58) }, self.Window)
+    local tabHeader = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 46) }, self.PageHolder)
     self.TabHeader = tabHeader
-    self.TabTitle = textLabel(tabHeader, "Dashboard", 15, self.Theme.Text, true); self.TabTitle.Position = UDim2.fromOffset(16, 3); self.TabTitle.Size = UDim2.new(1, -28, 0, 19)
-    self.TabSubtitle = textLabel(tabHeader, "", 10, self.Theme.SubText, false); self.TabSubtitle.Position = UDim2.fromOffset(16, 21); self.TabSubtitle.Size = UDim2.new(1, -28, 0, 15)
+    self.TabTitle = textLabel(tabHeader, "Dashboard", 15, self.Theme.Text, true); self.TabTitle.Position = UDim2.fromOffset(18, 5); self.TabTitle.Size = UDim2.new(1, -32, 0, 19)
+    self.TabSubtitle = textLabel(tabHeader, "", 10, self.Theme.SubText, false); self.TabSubtitle.Position = UDim2.fromOffset(18, 24); self.TabSubtitle.Size = UDim2.new(1, -32, 0, 15)
     local separator = new("Frame", { BackgroundColor3 = self.Theme.Border, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1) }, tabHeader)
 
     self.NotificationHolder = new("Frame", {
@@ -1855,20 +2002,32 @@ function AxelUI.new(options)
     end)
     self:_applyResponsive()
 
-    local overlay = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 100 }, self.Window)
-    local overlayIcon = icon(overlay, options.Logo or "dashboard", 46, self.Theme.Accent2); overlayIcon.AnchorPoint = Vector2.new(0.5, 0.5); overlayIcon.Position = UDim2.new(0.5, 0, 0.42, 0); overlayIcon.ZIndex = 101
-    local loadingText = textLabel(overlay, options.LoadingText or "Loading interface...", 13, self.Theme.Text, true); loadingText.AnchorPoint = Vector2.new(0.5, 0); loadingText.Position = UDim2.new(0.5, 0, 0.58, 0); loadingText.Size = UDim2.fromOffset(260, 24); loadingText.TextXAlignment = Enum.TextXAlignment.Center; loadingText.ZIndex = 101
-    local loadingBar = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.fromOffset(180, 4), Position = UDim2.new(0.5, -90, 0.66, 0), ZIndex = 101 }, overlay); corner(loadingBar, 4)
-    local loadingFill = new("Frame", { BackgroundColor3 = self.Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, 0, 1, 0), ZIndex = 102 }, loadingBar); corner(loadingFill, 4)
+    local overlay = new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = 0.02, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 100 }, self.Window)
+    local loaderCard = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(326, 156), ZIndex = 101 }, overlay)
+    corner(loaderCard, 12); stroke(loaderCard, self.Theme.Accent, 0.42, 1)
+    new("UIGradient", { Color = ColorSequence.new(self.Theme.Surface, self.Theme.Background), Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 0.12) }), Rotation = 35 }, loaderCard)
+    local loaderScale = new("UIScale", { Scale = 0.78 }, loaderCard)
+    local overlayIcon = icon(loaderCard, options.Logo or "dashboard", 42, self.Theme.Accent2); overlayIcon.Position = UDim2.fromOffset(22, 23); overlayIcon.ZIndex = 102
+    local loadingTitle = textLabel(loaderCard, options.LoadingText or options.Name or "Axel Hub", 16, self.Theme.Text, true); loadingTitle.Position = UDim2.fromOffset(78, 20); loadingTitle.Size = UDim2.new(1, -96, 0, 24); loadingTitle.ZIndex = 102
+    local loadingText = textLabel(loaderCard, options.LoadingSubtitle or "Preparing your workspace", 10, self.Theme.SubText, false); loadingText.Position = UDim2.fromOffset(78, 46); loadingText.Size = UDim2.new(1, -96, 0, 18); loadingText.ZIndex = 102
+    local loadingBar = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.new(1, -44, 0, 5), Position = UDim2.fromOffset(22, 104), ZIndex = 102 }, loaderCard); corner(loadingBar, 4)
+    local loadingFill = new("Frame", { BackgroundColor3 = self.Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, 0, 1, 0), ZIndex = 103 }, loadingBar); corner(loadingFill, 4)
+    local loadingHint = textLabel(loaderCard, "Loading modules", 9, self.Theme.Muted, false); loadingHint.Position = UDim2.fromOffset(22, 119); loadingHint.Size = UDim2.new(1, -44, 0, 16); loadingHint.ZIndex = 102
     tween(self.Scale, { Scale = 1 }, 0.45, Enum.EasingStyle.Back)
-    tween(loadingFill, { Size = UDim2.fromScale(1, 1) }, 0.55)
-    task.delay(0.62, function()
+    tween(loaderScale, { Scale = 1 }, 0.48, Enum.EasingStyle.Back)
+    tween(loadingFill, { Size = UDim2.fromScale(1, 1) }, 0.72, Enum.EasingStyle.Quint)
+    task.delay(0.78, function()
         if self._destroyed or not overlay.Parent then return end
-        tween(overlay, { BackgroundTransparency = 1 }, 0.25)
+        tween(loaderScale, { Scale = 0.94 }, 0.16, Enum.EasingStyle.Quad)
+        tween(overlay, { BackgroundTransparency = 1 }, 0.28)
+        tween(loaderCard, { BackgroundTransparency = 1 }, 0.22)
         tween(overlayIcon, { ImageTransparency = 1 }, 0.2)
+        tween(loadingTitle, { TextTransparency = 1 }, 0.2)
         tween(loadingText, { TextTransparency = 1 }, 0.2)
+        tween(loadingHint, { TextTransparency = 1 }, 0.2)
         tween(loadingBar, { BackgroundTransparency = 1 }, 0.2)
-        task.delay(0.28, function() if overlay.Parent then overlay:Destroy() end end)
+        tween(loadingFill, { BackgroundTransparency = 1 }, 0.2)
+        task.delay(0.3, function() if overlay.Parent then overlay:Destroy() end end)
     end)
 
     function self:CreateTab(data) return self:AddTab(data) end
@@ -1887,7 +2046,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 3.1
+AxelUI.Version = 5.0
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
