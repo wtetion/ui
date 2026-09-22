@@ -1827,9 +1827,9 @@ function AxelUI.TabMethods:LayoutPills()
     local heroTop = self.HideHeader and (mobile and 16 or 18) or 50
     -- Give the pills a little more room from the hero and from the card row
     -- below so the outlines don't look crowded or collide with nearby edges.
-    local pillY = heroHeight > 0 and (heroTop + heroHeight + 20) or 60
-    local bodyY = heroHeight > 0 and (heroTop + heroHeight + 70) or 102
-    local bodyBottom = heroHeight > 0 and (heroTop + heroHeight + 80) or 112
+    local pillY = heroHeight > 0 and (heroTop + heroHeight + 34) or 74
+    local bodyY = heroHeight > 0 and (heroTop + heroHeight + 92) or 122
+    local bodyBottom = heroHeight > 0 and (heroTop + heroHeight + 102) or 132
     self.PillBar.Position = UDim2.fromOffset(mobile and 8 or 13, pillY)
     self.PillBar.Size = UDim2.new(1, mobile and -16 or -26, 0, 34)
     self.PageBody.Position = UDim2.fromOffset(mobile and 8 or 13, bodyY)
@@ -1844,7 +1844,7 @@ function AxelUI.TabMethods:SelectPill(pill)
         tween(other.Button, { BackgroundColor3 = active and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
         other.Button.BackgroundTransparency = active and 0.02 or 0
         setGoldGradientActive(other.GoldGradient, active)
-        if other.Stroke then tween(other.Stroke, { Transparency = active and 0.02 or 0.58, Color = active and self.Window.Theme.Accent2 or self.Window.Theme.Accent3, Thickness = active and 1.15 or 0.8 }, 0.16) end
+        if other.Stroke then tween(other.Stroke, { Transparency = active and 0.02 or 0.38, Color = active and self.Window.Theme.Accent2 or self.Window.Theme.Border, Thickness = active and 1.15 or 0.75 }, 0.16) end
         setTextColor(other.Title, active and self.Window.Theme.Background or self.Window.Theme.Accent2)
     end
     self.ActivePill = pill
@@ -1886,7 +1886,7 @@ function AxelUI.TabMethods:AddPill(data)
         ZIndex = 4,
     }, self.PillBar)
     corner(button, 15)
-    local pillStroke = stroke(button, self.Window.Theme.Accent3, 0.58, 0.8)
+    local pillStroke = stroke(button, self.Window.Theme.Border, 0.38, 0.75)
     local goldGradient = addGoldGradient(self.Window, button)
     local title = button
     local pill = { Tab = self, Button = button, Title = title, Stroke = pillStroke, GoldGradient = goldGradient, Name = name, Callback = data.Callback or data.callback, Active = false }
@@ -1900,7 +1900,7 @@ function AxelUI.TabMethods:AddPill(data)
     end)
     connect(self.Window, button.MouseLeave, function()
         if not pill.Active then
-            tween(pillStroke, { Transparency = 0.58, Color = self.Window.Theme.Accent3, Thickness = 0.8 }, 0.16)
+            tween(pillStroke, { Transparency = 0.38, Color = self.Window.Theme.Border, Thickness = 0.75 }, 0.16)
             tween(button, { BackgroundColor3 = self.Window.Theme.Element }, 0.16)
         end
     end)
