@@ -24,7 +24,7 @@ local function loadAxelUI()
         end
     end
 
-    local hostedUrl = "YOUR_AXEL_UI_LIBRARY_URL"
+    local hostedUrl = "https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"
     if hostedUrl == "" or hostedUrl:find("YOUR_", 1, true) then
         warn("[AxelUI] Set hostedUrl, place AxelUI_Library.luau beside this script, or preload getgenv().AxelUI.")
         return nil
