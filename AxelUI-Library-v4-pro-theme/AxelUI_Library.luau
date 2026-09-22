@@ -401,7 +401,7 @@ end
 function AxelUI:_makeRow(parent, data, height)
     data = data or {}
     local rowHeight = height or 38
-    if data.Description and rowHeight < 50 then rowHeight = 50 end
+    if data.Description and rowHeight < 46 then rowHeight = 46 end
     local row = new("TextButton", {
         AutoButtonColor = false,
         BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2,
@@ -456,6 +456,9 @@ function AxelUI:_setActiveTab(tab, active)
     local color = active and self.Theme.Accent or self.Theme.SubText
     local background = active and self.Theme.Element or self.Theme.Surface
     tween(tab.Button, { BackgroundColor3 = background }, 0.18)
+    if tab.TabStroke then
+        tween(tab.TabStroke, { Transparency = active and 0.05 or 0.62, Color = active and self.Theme.Accent or self.Theme.Border }, 0.18)
+    end
     setTextColor(tab.Title, color)
     if tab.Icon then tween(tab.Icon, { ImageColor3 = color }, 0.18) end
     if tab.Indicator then
@@ -1005,6 +1008,7 @@ function AxelUI:AddTab(data)
         Size = UDim2.new(1, 0, 0, 39),
     }, self.TabList)
     corner(button, 9)
+    local tabStroke = stroke(button, self.Theme.Border, 0.62, 1)
     local indicator = new("Frame", {
         BackgroundColor3 = self.Theme.Accent,
         BackgroundTransparency = 1,
@@ -1037,7 +1041,7 @@ function AxelUI:AddTab(data)
         }, button)
         corner(badge, 8)
     end
-    tab.Button, tab.Title, tab.Subtitle, tab.IconHolder, tab.Icon, tab.Indicator, tab.Badge = button, title, subtitle, iconHolder, tabIcon, indicator, badge
+    tab.Button, tab.Title, tab.Subtitle, tab.IconHolder, tab.Icon, tab.Indicator, tab.Badge, tab.TabStroke = button, title, subtitle, iconHolder, tabIcon, indicator, badge, tabStroke
 
     local page = new("Frame", {
         BackgroundTransparency = 1,
@@ -1054,6 +1058,12 @@ function AxelUI:AddTab(data)
     table.insert(self.Tabs, tab)
 
     connect(self, button.MouseButton1Click, function() self:SelectTab(tab) end)
+    connect(self, button.MouseEnter, function()
+        if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.24, Color = self.Theme.Accent2 }, 0.14) end
+    end)
+    connect(self, button.MouseLeave, function()
+        if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.62, Color = self.Theme.Border }, 0.16) end
+    end)
     pressAnimation(self, button)
     if #self.Tabs == 1 then self:SelectTab(tab) end
     if self._applyResponsive then self:_applyResponsive() end
@@ -1089,6 +1099,8 @@ function AxelUI.TabMethods:AddHero(data)
     local height = tonumber(data.Height) or 104
     local mobileHeight = tonumber(data.MobileHeight) or math.max(226, height + 122)
     local heroTop = self.Window.IsMobile and 12 or 14
+    self.HideHeader = data.HideTabHeader ~= false
+    if self.Window.ActiveTab == self and self.Window.TabHeader then self.Window.TabHeader.Visible = not self.HideHeader end
     local hero = new("Frame", {
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
@@ -1137,7 +1149,6 @@ function AxelUI.TabMethods:AddHero(data)
     self.Hero, self.HeroWelcome, self.HeroBanner = hero, welcome, banner
     self.HeroWelcomeLabel, self.HeroWelcomeTitle, self.HeroWelcomeContent = welcomeLabel, welcomeTitle, welcomeContent
     self.HeroImage, self.HeroFallback, self.HeroHeight, self.HeroMobileHeight = picture, fallback, height, mobileHeight
-    self.HideHeader = data.HideTabHeader ~= false
     self.Window:_registerSearch(hero, tostring(data.Title or "") .. " " .. tostring(data.Content or ""))
     if self.Window.ActiveTab == self and self.Window.TabHeader then self.Window.TabHeader.Visible = not self.HideHeader end
     if self.Window._applyResponsive then self.Window:_applyResponsive() end
@@ -1341,7 +1352,7 @@ function AxelUI.TabMethods:AddSection(data)
         Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.02), NumberSequenceKeypoint.new(1, 0.16) }),
         Rotation = 90,
     }, card)
-    local headerHeight = data.Description ~= "" and 53 or 35
+    local headerHeight = data.Description ~= "" and 48 or 35
     local header = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, headerHeight) }, card)
     pad(header, 12, 12, 8, 4)
     local title = textLabel(header, section.Name, 14, self.Window.Theme.Text, true)
@@ -1365,8 +1376,8 @@ function AxelUI.TabMethods:AddSection(data)
         description.TextWrapped = true
     end
     local body = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0) }, card)
-    pad(body, 10, 10, 2, 10)
-    local layout = new("UIListLayout", { Padding = UDim.new(0, 7), SortOrder = Enum.SortOrder.LayoutOrder }, body)
+    pad(body, 10, 10, 2, 6)
+    local layout = new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, body)
     local syncBodyHeight
     syncBodyHeight = bindVerticalLayout(self.Window, body, layout, 12, function(height)
         if not section.Collapsed then
@@ -1588,6 +1599,48 @@ function AxelUI.SectionMethods:AddButton(data)
     return row
 end
 
+-- Compact horizontal actions used by dashboard footers and quick-action cards.
+-- It keeps the reference layout dense while preserving normal Button callbacks.
+function AxelUI.SectionMethods:AddActionBar(data)
+    data = data or {}
+    local actions = data.Actions or data.Items or {}
+    local bar = new("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, tonumber(data.Height) or 32),
+        LayoutOrder = data.LayoutOrder or 0,
+    }, self.Body)
+    local layout = new("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+        Padding = UDim.new(0, tonumber(data.Gap) or 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, bar)
+    local handles = {}
+    local count = math.max(1, #actions)
+    for index, item in ipairs(actions) do
+        item = type(item) == "table" and item or { Name = item }
+        local button = new("TextButton", {
+            AutoButtonColor = false,
+            BackgroundColor3 = item.Primary and self.Window.Theme.Accent or self.Window.Theme.Element,
+            BorderSizePixel = 0,
+            LayoutOrder = index,
+            Text = tostring(item.Name or item.Title or "Action"),
+            TextColor3 = item.Primary and self.Window.Theme.Background or self.Window.Theme.Text,
+            TextSize = tonumber(item.TextSize) or 10,
+            FontFace = fontFace(nil, item.Bold ~= false),
+            Size = UDim2.new(1 / count, -((tonumber(data.Gap) or 6) * (count - 1) / count), 0, tonumber(data.Height) or 32),
+        }, bar)
+        corner(button, 8); stroke(button, item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Border, 0.24, 1)
+        pressAnimation(self.Window, button)
+        connect(self.Window, button.MouseButton1Click, function()
+            if type(item.Callback or item.callback) == "function" then task.spawn(function() pcall(item.Callback or item.callback) end) end
+        end)
+        handles[index] = { Instance = button, Button = button, Name = button.Text }
+    end
+    table.insert(self.Controls, handles)
+    return { Instance = bar, Layout = layout, Buttons = handles }
+end
+
 function AxelUI.SectionMethods:AddToggle(data)
     data = data or {}
     data.Icon = data.Icon or "power"
@@ -1621,7 +1674,7 @@ end
 function AxelUI.SectionMethods:AddSlider(data)
     data = data or {}
     data.Icon = data.Icon or "chart"
-    local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 54)
+    local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 46)
     local minimum, maximum = tonumber(data.Min or data.Minimum) or 0, tonumber(data.Max or data.Maximum) or 100
     local value = math.clamp(tonumber(data.Default) or minimum, minimum, maximum)
     local valueText = textLabel(inner, "", 10, self.Window.Theme.Accent2, true)
@@ -2000,6 +2053,8 @@ AxelUI.SectionMethods.Text = AxelUI.SectionMethods.AddText
 AxelUI.SectionMethods.Label = AxelUI.SectionMethods.AddLabel
 AxelUI.SectionMethods.Paragraph = AxelUI.SectionMethods.AddParagraph
 AxelUI.SectionMethods.Button = AxelUI.SectionMethods.AddButton
+AxelUI.SectionMethods.AddActions = AxelUI.SectionMethods.AddActionBar
+AxelUI.SectionMethods.ActionBar = AxelUI.SectionMethods.AddActionBar
 AxelUI.SectionMethods.Toggle = AxelUI.SectionMethods.AddToggle
 AxelUI.SectionMethods.Slider = AxelUI.SectionMethods.AddSlider
 AxelUI.SectionMethods.Dropdown = AxelUI.SectionMethods.AddDropdown
@@ -2296,7 +2351,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 5.4
+AxelUI.Version = 5.5
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
