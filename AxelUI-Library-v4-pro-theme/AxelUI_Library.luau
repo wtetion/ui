@@ -43,8 +43,9 @@ local DEFAULT_THEME = {
     Text = Color3.fromRGB(244, 245, 248),
     SubText = Color3.fromRGB(157, 160, 171),
     Muted = Color3.fromRGB(105, 108, 119),
-    Accent = Color3.fromRGB(255, 174, 0),
-    Accent2 = Color3.fromRGB(255, 205, 69),
+    Accent = Color3.fromRGB(224, 164, 69),
+    Accent2 = Color3.fromRGB(247, 210, 139),
+    Accent3 = Color3.fromRGB(139, 91, 43),
     Success = Color3.fromRGB(91, 220, 139),
     Warning = Color3.fromRGB(255, 184, 74),
     Danger = Color3.fromRGB(255, 99, 111),
@@ -946,15 +947,41 @@ function AxelUI:SetOpen(visible)
     visible = visible == true
     if visible then
         self.Window.Visible = true
-        tween(self.Scale, { Scale = 1 }, 0.22, Enum.EasingStyle.Back)
+        self.Window.GroupTransparency = 1
+        self.Window.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
+        if self.Scale then self.Scale.Scale = 0.9 end
+        tween(self.Window, { GroupTransparency = 0 }, 0.22, Enum.EasingStyle.Quint)
+        tween(self.Scale, { Scale = 1 }, 0.32, Enum.EasingStyle.Back)
+        if self.GlowStroke then
+            tween(self.GlowStroke, { Transparency = 0.015, Thickness = 2 }, 0.14, Enum.EasingStyle.Quint)
+            task.delay(0.62, function()
+                if not self._destroyed and self._open then tween(self.GlowStroke, { Transparency = 0.2, Thickness = 1.5 }, 0.3) end
+            end)
+        end
+        if self.RestoreButton and self.RestoreButton.Visible then
+            tween(self.RestoreScale, { Scale = 0.65 }, 0.12)
+            task.delay(0.13, function() if self._open and self.RestoreButton then self.RestoreButton.Visible = false end end)
+        end
     else
-        tween(self.Scale, { Scale = 0.92 }, 0.16)
-        task.delay(0.17, function()
-            if not self._destroyed and not self._open then self.Window.Visible = false end
+        tween(self.Scale, { Scale = 0.88 }, 0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        tween(self.Window, { GroupTransparency = 1 }, 0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        tween(self.GlowStroke, { Transparency = 0.72, Thickness = 1 }, 0.18)
+        task.delay(0.22, function()
+            if not self._destroyed and not self._open then
+                self.Window.Visible = false
+                self.Window.GroupTransparency = 0
+                self.Scale.Scale = 1
+                if self.RestoreButton then
+                    self.RestoreButton.Visible = true
+                    self.RestoreButton.BackgroundTransparency = 0.08
+                    local restoreStroke = self.RestoreButton:FindFirstChildOfClass("UIStroke")
+                    if restoreStroke then restoreStroke.Transparency = 0.04 end
+                    if self.RestoreScale then self.RestoreScale.Scale = 0.72; tween(self.RestoreScale, { Scale = 1 }, 0.28, Enum.EasingStyle.Back) end
+                end
+            end
         end)
     end
     self._open = visible
-    if self.RestoreButton then self.RestoreButton.Visible = not visible end
     if self.TouchButton and self.TouchButton ~= self.RestoreButton then self.TouchButton.Visible = not visible end
 end
 
@@ -1009,7 +1036,7 @@ function AxelUI:SetTheme(theme)
         { old.ElementHover, nextTheme.ElementHover }, { old.Border, nextTheme.Border },
         { old.Text, nextTheme.Text }, { old.SubText, nextTheme.SubText },
         { old.Muted, nextTheme.Muted }, { old.Accent, nextTheme.Accent },
-        { old.Accent2, nextTheme.Accent2 }, { old.Success, nextTheme.Success },
+        { old.Accent2, nextTheme.Accent2 }, { old.Accent3, nextTheme.Accent3 }, { old.Success, nextTheme.Success },
         { old.Warning, nextTheme.Warning }, { old.Danger, nextTheme.Danger },
     }
     self.Theme = nextTheme
@@ -1053,9 +1080,11 @@ function AxelUI:SetTheme(theme)
     pcall(function()
         if self.EdgeGradient then
             self.EdgeGradient.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, self.Theme.Accent),
+                ColorSequenceKeypoint.new(0, self.Theme.Accent3),
+                ColorSequenceKeypoint.new(0.22, self.Theme.Accent),
                 ColorSequenceKeypoint.new(0.5, self.Theme.Accent2),
-                ColorSequenceKeypoint.new(1, self.Theme.Accent),
+                ColorSequenceKeypoint.new(0.78, self.Theme.Accent),
+                ColorSequenceKeypoint.new(1, self.Theme.Accent3),
             })
         end
     end)
@@ -1189,11 +1218,11 @@ function AxelUI:_applyResponsive()
     local desktopWidth
 
     if mobile then
-        local maxWidth = math.max(300, math.min(480, viewport.X - 18))
-        local maxHeight = math.max(360, math.min(720, viewport.Y - 26))
+        local maxWidth = math.max(180, math.min(480, viewport.X - 18))
+        local maxHeight = math.max(220, math.min(720, viewport.Y - 26))
         local mobileSize = self.MobileSize
-        local width = self._maximized and maxWidth or (mobileSize and math.clamp(mobileSize.X.Offset, 300, maxWidth) or maxWidth)
-        local height = self._maximized and maxHeight or (mobileSize and math.clamp(mobileSize.Y.Offset, 360, maxHeight) or maxHeight)
+        local width = self._maximized and maxWidth or (mobileSize and math.clamp(mobileSize.X.Offset, math.min(300, maxWidth), maxWidth) or maxWidth)
+        local height = self._maximized and maxHeight or (mobileSize and math.clamp(mobileSize.Y.Offset, math.min(360, maxHeight), maxHeight) or maxHeight)
         self.Window.Size = UDim2.fromOffset(width, height)
         self.Header.Position = UDim2.fromOffset(64, 0)
         self.Header.Size = UDim2.new(1, -64, 0, 50)
@@ -1222,13 +1251,13 @@ function AxelUI:_applyResponsive()
         self.TabTitle.TextSize = 13
         self.TabSubtitle.Visible = false
         self.TabHeader.Size = UDim2.new(1, 0, 0, 38)
-        self.TabTitle.Position = UDim2.fromOffset(12, 8)
+        self.TabTitle.Position = UDim2.fromOffset(16, 8)
         if self.RestoreButton then self.RestoreButton.Visible = not self._open end
         self.NotificationHolder.Size = UDim2.fromOffset(220, 0)
         self.NotificationHolder.Position = UDim2.new(1, -10, 0, 58)
     else
-        local maxWidth = math.max(760, math.min(1440, viewport.X - 24))
-        local maxHeight = math.max(480, math.min(1000, viewport.Y - 24))
+        local maxWidth = math.max(320, math.min(1440, viewport.X - 32))
+        local maxHeight = math.max(280, math.min(1000, viewport.Y - 32))
         if self._maximized then
             desktopWidth = math.max(1, viewport.X - 32)
             self.Window.Size = UDim2.new(1, -32, 1, -32)
@@ -1269,10 +1298,21 @@ function AxelUI:_applyResponsive()
         self.TabTitle.TextSize = 15
         self.TabSubtitle.Visible = true
         self.TabHeader.Size = UDim2.new(1, 0, 0, 46)
-        self.TabTitle.Position = UDim2.fromOffset(18, 5)
+        self.TabTitle.Position = UDim2.fromOffset(22, 6)
         if self.RestoreButton then self.RestoreButton.Visible = not self._open end
         self.NotificationHolder.Size = UDim2.fromOffset(300, 0)
         self.NotificationHolder.Position = UDim2.new(1, -18, 0, 62)
+    end
+
+    -- Keep the rounded outer shell fully on-screen on short viewports and
+    -- after a screen-orientation change, without resetting a valid drag.
+    if not self._dragging then
+        local absolute, size = self.Window.AbsolutePosition, self.Window.AbsoluteSize
+        local left = math.clamp(absolute.X, 8, math.max(8, viewport.X - size.X - 8))
+        local top = math.clamp(absolute.Y, 8, math.max(8, viewport.Y - size.Y - 8))
+        if math.abs(left - absolute.X) > 1 or math.abs(top - absolute.Y) > 1 then
+            self.Window.Position = UDim2.new(0.5, left + size.X / 2 - viewport.X / 2, 0.5, top + size.Y / 2 - viewport.Y / 2)
+        end
     end
 
     for _, tab in ipairs(self.Tabs) do
@@ -1283,7 +1323,7 @@ function AxelUI:_applyResponsive()
         end
         if tab.Hero and tab.PageBody and not tab.SubTabBar then
             local heroHeight = mobile and (tab.HeroMobileHeight or tab.HeroHeight or 104) or (tab.HeroHeight or 104)
-            local heroTop = tab.HideHeader and (mobile and 12 or 14) or 50
+            local heroTop = tab.HideHeader and (mobile and 16 or 18) or 50
             tab.Hero.Size = UDim2.new(1, mobile and -16 or -26, 0, heroHeight)
             tab.Hero.Position = UDim2.fromOffset(mobile and 8 or 13, heroTop)
             if tab.HeroWelcome and tab.HeroBanner then
@@ -1312,7 +1352,7 @@ function AxelUI:_applyResponsive()
         if tab.RightBody then tab.RightBody.Size = mobile and UDim2.new(1, 0, 0, 0) or UDim2.new(0.5, -5, 0, 0) end
         if tab.SubTabBar then
             local heroHeight = tab.Hero and (mobile and (tab.HeroMobileHeight or tab.HeroHeight or 104) or (tab.HeroHeight or 104)) or 0
-            local heroTop = tab.HideHeader and (mobile and 12 or 14) or 50
+            local heroTop = tab.HideHeader and (mobile and 16 or 18) or 50
             local pillY = heroHeight > 0 and (heroTop + heroHeight + 10) or 50
             tab.SubTabBar.Position = UDim2.fromOffset(mobile and 8 or 13, pillY)
             tab.SubTabBar.Size = UDim2.new(1, mobile and -16 or -26, 0, 30)
@@ -1320,7 +1360,7 @@ function AxelUI:_applyResponsive()
         for _, subtab in ipairs(tab.SubTabs or {}) do
             if subtab.PageBody then
                 local heroHeight = tab.Hero and (mobile and (tab.HeroMobileHeight or tab.HeroHeight or 104) or (tab.HeroHeight or 104)) or 0
-                local heroTop = tab.HideHeader and (mobile and 12 or 14) or 50
+                local heroTop = tab.HideHeader and (mobile and 16 or 18) or 50
                 local contentY = heroHeight > 0 and (heroTop + heroHeight + 54) or 86
                 local contentBottom = heroHeight > 0 and (heroTop + heroHeight + 64) or 96
                 subtab.PageBody.Position = UDim2.fromOffset(mobile and 8 or 13, contentY)
@@ -1577,7 +1617,7 @@ function AxelUI.TabMethods:AddHero(data)
     data = data or {}
     local height = tonumber(data.Height) or 104
     local mobileHeight = tonumber(data.MobileHeight) or math.max(226, height + 122)
-    local heroTop = self.Window.IsMobile and 12 or 14
+    local heroTop = self.Window.IsMobile and 16 or 18
     self.HideHeader = data.HideTabHeader ~= false
     if self.Window.ActiveTab == self and self.Window.TabHeader then self.Window.TabHeader.Visible = not self.HideHeader end
     local hero = new("Frame", {
@@ -1644,7 +1684,7 @@ function AxelUI.TabMethods:LayoutPills()
     if not self.PillBar or not self.PageBody then return end
     local mobile = self.Window.IsMobile
     local heroHeight = self.Hero and (mobile and (self.HeroMobileHeight or self.HeroHeight or 104) or (self.HeroHeight or 104)) or 0
-    local heroTop = self.HideHeader and (mobile and 12 or 14) or 50
+    local heroTop = self.HideHeader and (mobile and 16 or 18) or 50
     local pillY = heroHeight > 0 and (heroTop + heroHeight + 10) or 50
     local bodyY = heroHeight > 0 and (heroTop + heroHeight + 54) or 86
     local bodyBottom = heroHeight > 0 and (heroTop + heroHeight + 64) or 96
@@ -1779,7 +1819,7 @@ function AxelUI.TabMethods:AddSubTab(data)
         pageBody, columns, leftColumn, rightColumn, columnLayout = self.PageBody, self.Columns, self.LeftBody, self.RightBody, self.ColumnLayout
         leftLayout, rightLayout = self.Layout, self.RightBody and self.RightBody:FindFirstChildOfClass("UIListLayout")
         local heroHeight = self.Hero and (self.Window.IsMobile and (self.HeroMobileHeight or self.HeroHeight or 104) or (self.HeroHeight or 104)) or 0
-        local heroTop = self.HideHeader and (self.Window.IsMobile and 12 or 14) or 50
+        local heroTop = self.HideHeader and (self.Window.IsMobile and 16 or 18) or 50
         local contentY = heroHeight > 0 and (heroTop + heroHeight + 54) or 86
         local contentBottom = heroHeight > 0 and (heroTop + heroHeight + 64) or 96
         self.PageBody.Position = UDim2.fromOffset(13, contentY)
@@ -2184,13 +2224,31 @@ function AxelUI.SectionMethods:AddSlider(data)
     data.Icon = data.Icon or "chart"
     data.RightReserved = data.RightReserved or 145
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
-    local minimum, maximum = tonumber(data.Min or data.Minimum) or 0, tonumber(data.Max or data.Maximum) or 100
+    local minimum = tonumber(data.Min or data.Minimum) or 0
+    local maximum = math.max(minimum, tonumber(data.Max or data.Maximum) or 100)
     local value = math.clamp(tonumber(data.Default) or minimum, minimum, maximum)
-    local valueText = textLabel(inner, "", 10, self.Window.Theme.Accent2, true)
-    valueText.Size = UDim2.fromOffset(30, 18)
-    valueText.Position = UDim2.new(1, -145, 0.5, -9)
+    local precision = tonumber(data.Decimals)
+    if precision == nil then precision = minimum % 1 == 0 and maximum % 1 == 0 and 0 or 1 end
+    precision = math.clamp(math.floor(precision), 0, 4)
+    local valuePower = 10 ^ precision
+    local function normalizeValue(number)
+        number = math.clamp(tonumber(number) or minimum, minimum, maximum)
+        return math.floor(number * valuePower + 0.5) / valuePower
+    end
+    local function formatValue(number)
+        local formatted = string.format("%." .. tostring(precision) .. "f", number)
+        if precision > 0 then formatted = formatted:gsub("(%..-)0+$", "%1"):gsub("%.$", "") end
+        return formatted .. tostring(data.Suffix or "")
+    end
+    local valueText = textLabel(inner, "", 11, self.Window.Theme.Text, true)
+    valueText.Size = UDim2.fromOffset(36, 18)
+    valueText.Position = UDim2.new(1, -151, 0.5, -9)
     valueText.TextXAlignment = Enum.TextXAlignment.Right
-    valueText.ZIndex = 8
+    valueText.TextTruncate = Enum.TextTruncate.AtEnd
+    valueText.TextStrokeColor3 = self.Window.Theme.Background
+    valueText.TextStrokeTransparency = 0.72
+    valueText.Visible = data.ShowValue ~= false
+    valueText.ZIndex = 12
     local bar = new("Frame", { BackgroundColor3 = self.Window.Theme.Element, Size = UDim2.fromOffset(92, 5), Position = UDim2.new(1, -106, 0.5, -2), ZIndex = 8 }, inner)
     corner(bar, 4)
     local fill = new("Frame", { BackgroundColor3 = self.Window.Theme.Accent, Size = UDim2.new(0, 0, 1, 0), ZIndex = 9 }, bar)
@@ -2216,23 +2274,22 @@ function AxelUI.SectionMethods:AddSlider(data)
     local handle = { Value = value, Row = row }
     local function setFromX(x, silent)
         local ratio = math.clamp((x - bar.AbsolutePosition.X) / math.max(1, bar.AbsoluteSize.X), 0, 1)
-        local decimals = tonumber(data.Decimals) or 1
         local nextValue = minimum + (maximum - minimum) * ratio
-        local power = 10 ^ decimals
-        nextValue = math.floor(nextValue * power + 0.5) / power
+        nextValue = normalizeValue(nextValue)
         handle.Value = nextValue
-        valueText.Text = tostring(nextValue) .. tostring(data.Suffix or "")
-        fill.Size = UDim2.new(ratio, 0, 1, 0)
-        thumb.Position = UDim2.new(ratio, 0, 0.5, 0)
+        valueText.Text = formatValue(nextValue)
+        local snappedRatio = math.clamp((nextValue - minimum) / math.max(0.0001, maximum - minimum), 0, 1)
+        fill.Size = UDim2.new(snappedRatio, 0, 1, 0)
+        thumb.Position = UDim2.new(snappedRatio, 0, 0.5, 0)
         if not silent and type(data.Callback or data.callback) == "function" then
             task.spawn(function() pcall(data.Callback or data.callback, nextValue) end)
         end
     end
     function handle:Set(nextValue, silent)
-        nextValue = math.clamp(tonumber(nextValue) or minimum, minimum, maximum)
+        nextValue = normalizeValue(nextValue)
         local ratio = (nextValue - minimum) / math.max(0.0001, maximum - minimum)
         handle.Value = nextValue
-        valueText.Text = tostring(nextValue) .. tostring(data.Suffix or "")
+        valueText.Text = formatValue(nextValue)
         fill.Size = UDim2.new(ratio, 0, 1, 0)
         thumb.Position = UDim2.new(ratio, 0, 0.5, 0)
         if not silent and type(data.Callback or data.callback) == "function" then
@@ -2280,14 +2337,21 @@ function AxelUI.SectionMethods:AddDropdown(data)
         ZIndex = 8,
     }, inner)
     corner(selector, 5)
+    pad(selector, 9, 26, 0, 0)
+    selector.TextXAlignment = Enum.TextXAlignment.Left
+    selector.TextTruncate = Enum.TextTruncate.AtEnd
+    local arrow = icon(selector, "chevron", 13, self.Window.Theme.SubText)
+    arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+    arrow.Position = UDim2.new(1, -14, 0.5, 0)
+    arrow.ZIndex = selector.ZIndex + 1
     local popup
     local handle = { Value = selected, Row = row }
     local function close()
-        if popup then popup:Destroy(); popup = nil end
+        if popup then popup:Destroy(); popup = nil; tween(arrow, { Rotation = 0 }, 0.14) end
         if self.Window._dropdownClose == close then self.Window._dropdownClose = nil end
     end
     local function open()
-        close()
+        if popup then close(); return end
         local popupHeight = math.min(#options * 28 + 8, 240)
         popup = new("ScrollingFrame", {
             Active = true,
@@ -2303,6 +2367,7 @@ function AxelUI.SectionMethods:AddDropdown(data)
         }, self.Window.Gui)
         corner(popup, 5); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 4, 4, 4, 4)
         placePopup(popup, selector, 145, popupHeight)
+        tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
         local list = new("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
         for _, option in ipairs(options) do
             local optionButton = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Surface2, BorderSizePixel = 0, Text = tostring(option), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.new(1, 0, 0, 25), ZIndex = 51 }, popup)
@@ -2376,11 +2441,17 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         ZIndex = 8,
     }, inner)
     corner(selector, 5)
+    pad(selector, 9, 27, 0, 0)
+    selector.TextXAlignment = Enum.TextXAlignment.Left
     local popup
+    local arrow = icon(selector, "chevron", 13, self.Window.Theme.SubText)
+    arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+    arrow.Position = UDim2.new(1, -15, 0.5, 0)
+    arrow.ZIndex = selector.ZIndex + 1
     local optionButtons = {}
     local handle = { Value = selected, Row = row }
     local function close()
-        if popup then popup:Destroy(); popup = nil end
+        if popup then popup:Destroy(); popup = nil; tween(arrow, { Rotation = 0 }, 0.14) end
         optionButtons = {}
         if self.Window._dropdownClose == close then self.Window._dropdownClose = nil end
     end
@@ -2393,7 +2464,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         end
     end
     local function open()
-        close()
+        if popup then close(); return end
         local popupHeight = math.min(#options * 28 + 8, 240)
         popup = new("ScrollingFrame", {
             Active = true,
@@ -2409,6 +2480,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         }, self.Window.Gui)
         corner(popup, 7); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 4, 4, 4, 4)
         placePopup(popup, selector, 175, popupHeight)
+        tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
         new("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
         for _, option in ipairs(options) do
             local value = tostring(option)
@@ -2758,11 +2830,12 @@ function AxelUI:ConfirmUnload()
     if self._confirmOverlay and self._confirmOverlay.Parent then return true end
     local overlay = new("Frame", {
         BackgroundColor3 = self.Theme.Background,
-        BackgroundTransparency = 0.28,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Size = UDim2.fromScale(1, 1),
         ZIndex = 400,
     }, self.Gui)
+    local dimmer = new("Frame", { Active = true, BackgroundColor3 = self.Theme.Background, BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 401 }, overlay)
     local card = new("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = self.Theme.Surface,
@@ -2772,7 +2845,8 @@ function AxelUI:ConfirmUnload()
         ZIndex = 401,
     }, overlay)
     corner(card, 12)
-    stroke(card, self.Theme.Border, 0.12, 1)
+    local cardStroke = stroke(card, self.Theme.Accent2, 0.28, 1.2)
+    local cardScale = new("UIScale", { Scale = 0.84 }, card)
     local title = textLabel(card, "Unload Axel Hub?", 14, self.Theme.Text, true)
     title.Position = UDim2.fromOffset(18, 16); title.Size = UDim2.new(1, -36, 0, 22); title.ZIndex = 402
     local body = textLabel(card, "The UI and its listeners will be removed.", 10, self.Theme.SubText, false)
@@ -2803,16 +2877,25 @@ function AxelUI:ConfirmUnload()
         ZIndex = 402,
     }, card)
     corner(confirm, 8); pressAnimation(self, confirm)
-    local function closePrompt()
-        if overlay.Parent then overlay:Destroy() end
-        self._confirmOverlay = nil
+    local closing = false
+    local function closePrompt(unload)
+        if closing then return end
+        closing = true
+        tween(dimmer, { BackgroundTransparency = 1 }, 0.14)
+        tween(cardScale, { Scale = 0.88 }, 0.14, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        tween(cardStroke, { Transparency = 0.65, Thickness = 1 }, 0.14)
+        task.delay(0.16, function()
+            if overlay.Parent then overlay:Destroy() end
+            self._confirmOverlay = nil
+            if unload and not self._destroyed then self:Unload() end
+        end)
     end
     self._confirmOverlay = overlay
-    connect(self, cancel.MouseButton1Click, closePrompt)
-    connect(self, confirm.MouseButton1Click, function()
-        closePrompt()
-        self:Unload()
-    end)
+    tween(dimmer, { BackgroundTransparency = 0.42 }, 0.16, Enum.EasingStyle.Quint)
+    tween(cardScale, { Scale = 1 }, 0.28, Enum.EasingStyle.Back)
+    tween(cardStroke, { Transparency = 0.04, Thickness = 1.6 }, 0.18, Enum.EasingStyle.Quint)
+    connect(self, cancel.MouseButton1Click, function() closePrompt(false) end)
+    connect(self, confirm.MouseButton1Click, function() closePrompt(true) end)
     return true
 end
 
@@ -2849,7 +2932,7 @@ function AxelUI.new(options)
         Resizable = options.Resizable ~= false,
         ShowResizeGrip = options.ShowResizeGrip == true,
         GlassEnabled = type(options.Glass) == "boolean" and options.Glass or glassOptions.Enabled == true,
-        GlassTransparency = math.clamp(tonumber(glassOptions.Transparency or options.GlassTransparency) or 0.1, 0, 0.45),
+        GlassTransparency = math.clamp(tonumber(glassOptions.Transparency or options.GlassTransparency) or 0.22, 0, 0.45),
         AnimatedBorder = options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false,
         BorderAnimationDuration = math.clamp(tonumber(glassOptions.AnimationDuration or options.BorderAnimationDuration) or 3.2, 0.8, 15),
         TabAnimation = options.TabAnimation ~= false,
@@ -2866,17 +2949,44 @@ function AxelUI.new(options)
 
     self.Window = new("CanvasGroup", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = self.DesktopSize, ClipsDescendants = true }, self.Gui)
     corner(self.Window, 18)
-    self.GlowStroke = stroke(self.Window, self.Theme.Accent, 0.42, 1.25)
+    local glitterLayer = new("Frame", { Name = "AxelGlitterLayer", BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 2 }, self.Window)
+    self.GlitterLayer = glitterLayer
+    local glitterPoints = {
+        {0.06, 0.15, 3}, {0.19, 0.34, 2}, {0.31, 0.12, 2}, {0.43, 0.71, 3},
+        {0.56, 0.2, 2}, {0.68, 0.47, 3}, {0.81, 0.15, 2}, {0.93, 0.36, 3},
+        {0.12, 0.62, 2}, {0.27, 0.86, 3}, {0.51, 0.46, 2}, {0.75, 0.83, 3},
+        {0.88, 0.68, 2}, {0.37, 0.52, 2}, {0.64, 0.9, 2}, {0.04, 0.87, 2},
+    }
+    for index, point in ipairs(glitterPoints) do
+        local glint = new("Frame", {
+            Name = "AxelGlint",
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = self.Theme.Accent2,
+            BackgroundTransparency = 0.92,
+            BorderSizePixel = 0,
+            Position = UDim2.fromScale(point[1], point[2]),
+            Rotation = index % 2 == 0 and 45 or 0,
+            Size = UDim2.fromOffset(point[3], point[3]),
+            ZIndex = 3,
+        }, glitterLayer)
+        corner(glint, point[3])
+        TweenService:Create(glint, TweenInfo.new(1.6 + (index % 5) * 0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { BackgroundTransparency = 0.68 }):Play()
+    end
+    self.GlowStroke = stroke(self.Window, self.Theme.Accent2, 0.38, 1.35)
     self.EdgeGradient = new("UIGradient", {
         Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, self.Theme.Accent),
+            ColorSequenceKeypoint.new(0, self.Theme.Accent3),
+            ColorSequenceKeypoint.new(0.22, self.Theme.Accent),
             ColorSequenceKeypoint.new(0.5, self.Theme.Accent2),
-            ColorSequenceKeypoint.new(1, self.Theme.Accent),
+            ColorSequenceKeypoint.new(0.78, self.Theme.Accent),
+            ColorSequenceKeypoint.new(1, self.Theme.Accent3),
         }),
         Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.45),
-            NumberSequenceKeypoint.new(0.5, 0.03),
-            NumberSequenceKeypoint.new(1, 0.45),
+            NumberSequenceKeypoint.new(0, 0.38),
+            NumberSequenceKeypoint.new(0.22, 0.16),
+            NumberSequenceKeypoint.new(0.5, 0.02),
+            NumberSequenceKeypoint.new(0.78, 0.16),
+            NumberSequenceKeypoint.new(1, 0.38),
         }),
         Offset = Vector2.new(-1, 0),
     }, self.GlowStroke)
@@ -2887,8 +2997,8 @@ function AxelUI.new(options)
         end)
         if edgeOk and edgeTween then self._edgeTween = edgeTween; edgeTween:Play() end
     end
-    connect(self, self.Window.MouseEnter, function() tween(self.GlowStroke, { Transparency = 0.08, Thickness = 1.6 }, 0.18) end)
-    connect(self, self.Window.MouseLeave, function() tween(self.GlowStroke, { Transparency = 0.42, Thickness = 1.25 }, 0.2) end)
+    connect(self, self.Window.MouseEnter, function() tween(self.GlowStroke, { Transparency = 0.025, Thickness = 2 }, 0.18) end)
+    connect(self, self.Window.MouseLeave, function() tween(self.GlowStroke, { Transparency = 0.24, Thickness = 1.45 }, 0.2) end)
     new("UIGradient", {
         Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, self.Theme.Background),
@@ -2909,7 +3019,9 @@ function AxelUI.new(options)
 
     local header = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 0), Size = UDim2.new(1, -170, 0, 58), ZIndex = 5 }, self.Window)
     self.Header = header
-    corner(header, 15)
+    corner(header, 18)
+    -- Square the header's interior corners without covering the outer top-right radius.
+    new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 6 }, header)
     new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -12), Size = UDim2.fromOffset(12, 12), ZIndex = 6 }, header)
     new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -12, 1, -12), Size = UDim2.fromOffset(12, 12), ZIndex = 6 }, header)
     new("UIGradient", {
@@ -3026,9 +3138,9 @@ function AxelUI.new(options)
 
     local sidebar = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.new(0, 170, 1, 0), ZIndex = 6 }, self.Window)
     self.Sidebar = sidebar
-    corner(sidebar, 15)
-    self.SidebarRightTopCap = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -15, 0, 0), Size = UDim2.fromOffset(15, 15), ZIndex = 7 }, sidebar)
-    self.SidebarRightBottomCap = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -15, 1, -15), Size = UDim2.fromOffset(15, 15), ZIndex = 7 }, sidebar)
+    corner(sidebar, 18)
+    self.SidebarRightTopCap = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -18, 0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 7 }, sidebar)
+    self.SidebarRightBottomCap = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -18, 1, -18), Size = UDim2.fromOffset(18, 18), ZIndex = 7 }, sidebar)
     new("Frame", { BackgroundColor3 = self.Theme.Border, BackgroundTransparency = 0.25, BorderSizePixel = 0, Position = UDim2.new(1, -1, 0, 0), Size = UDim2.new(0, 1, 1, 0), ZIndex = 7 }, sidebar)
     logoHolder.Parent = sidebar; logoHolder.Position = UDim2.fromOffset(18, 16); logoHolder.Size = UDim2.fromOffset(38, 38); logoHolder.ZIndex = 8; logoIcon.ZIndex = 9
     brand.Parent = sidebar; brand.Position = UDim2.fromOffset(66, 15); brand.Size = UDim2.new(1, -78, 0, 20); brand.ZIndex = 8
@@ -3038,8 +3150,8 @@ function AxelUI.new(options)
     self.NavTitle = navTitle
     self.TabList = new("ScrollingFrame", { Active = true, AutomaticCanvasSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), Position = UDim2.fromOffset(8, 108), ScrollBarImageColor3 = self.Theme.Accent, ScrollBarThickness = 2, Size = UDim2.new(1, -16, 1, -188) }, sidebar)
     new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, self.TabList)
-    local profile = new("Frame", { BackgroundColor3 = self.Theme.Element, BackgroundTransparency = 0.15, BorderSizePixel = 0, Position = UDim2.new(0, 12, 1, -112), Size = UDim2.new(1, -24, 0, 52) }, sidebar)
-    corner(profile, 10); stroke(profile, self.Theme.Border, 0.55, 1)
+    local profile = new("Frame", { BackgroundColor3 = self.Theme.Element, BackgroundTransparency = 0.08, BorderSizePixel = 0, Position = UDim2.new(0, 12, 1, -112), Size = UDim2.new(1, -24, 0, 52) }, sidebar)
+    corner(profile, 11); stroke(profile, self.Theme.Border, 0.28, 1)
     local avatar = new("ImageLabel", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Size = UDim2.fromOffset(30, 30), Position = UDim2.fromOffset(8, 9), Image = "", ScaleType = Enum.ScaleType.Crop }, profile)
     corner(avatar, 15)
     local avatarFallback = icon(profile, "user", 20, self.Theme.SubText)
@@ -3060,16 +3172,19 @@ function AxelUI.new(options)
     self.Footer = footer
 
     self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 58), Size = UDim2.new(1, -170, 1, -58), ZIndex = 1, ClipsDescendants = true }, self.Window)
-    corner(self.PageHolder, 15)
+    corner(self.PageHolder, 18)
     self.PageCornerCaps = {
-        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(15, 15), ZIndex = 2 }, self.PageHolder),
-        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.new(1, -15, 0, 0), Size = UDim2.fromOffset(15, 15), ZIndex = 2 }, self.PageHolder),
-        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -15), Size = UDim2.fromOffset(15, 15), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.new(1, -18, 0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -18), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
     }
     local tabHeader = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 46) }, self.PageHolder)
+    corner(tabHeader, 12)
+    new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -12), Size = UDim2.fromOffset(12, 12) }, tabHeader)
+    new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Position = UDim2.new(1, -12, 1, -12), Size = UDim2.fromOffset(12, 12) }, tabHeader)
     self.TabHeader = tabHeader
-    self.TabTitle = textLabel(tabHeader, "Dashboard", 15, self.Theme.Text, true); self.TabTitle.Position = UDim2.fromOffset(18, 5); self.TabTitle.Size = UDim2.new(1, -32, 0, 19)
-    self.TabSubtitle = textLabel(tabHeader, "", 10, self.Theme.SubText, false); self.TabSubtitle.Position = UDim2.fromOffset(18, 24); self.TabSubtitle.Size = UDim2.new(1, -32, 0, 15)
+    self.TabTitle = textLabel(tabHeader, "Dashboard", 15, self.Theme.Text, true); self.TabTitle.Position = UDim2.fromOffset(22, 6); self.TabTitle.Size = UDim2.new(1, -36, 0, 19)
+    self.TabSubtitle = textLabel(tabHeader, "", 10, self.Theme.SubText, false); self.TabSubtitle.Position = UDim2.fromOffset(22, 24); self.TabSubtitle.Size = UDim2.new(1, -36, 0, 15)
     local separator = new("Frame", { BackgroundColor3 = self.Theme.Border, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1) }, tabHeader)
 
     self.NotificationHolder = new("Frame", {
@@ -3095,6 +3210,7 @@ function AxelUI.new(options)
     corner(self.TouchButton, 22)
     stroke(self.TouchButton, self.Theme.Accent, 0.18, 1)
     self.TouchButton.Name = "AxelRestoreButton"
+    self.RestoreScale = new("UIScale", { Scale = 1 }, self.TouchButton)
     local touchStroke = self.TouchButton:FindFirstChildOfClass("UIStroke")
     if touchStroke then touchStroke.Thickness = 1.5; touchStroke.Transparency = 0.08 end
     local touchIcon = icon(self.TouchButton, "star", 23, self.Theme.Accent2)
@@ -3102,7 +3218,7 @@ function AxelUI.new(options)
     self.RestoreButton = self.TouchButton
     pressAnimation(self, self.TouchButton)
     connect(self, self.TouchButton.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.Touch then
             self._restoreDrag = { Start = input.Position, Origin = self.TouchButton.AbsolutePosition, Moved = false }
         end
     end)
@@ -3134,7 +3250,7 @@ function AxelUI.new(options)
         end
     end)
     connect(self, UserInputService.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.Touch then
             self._dragging = false
             self._resizing = false
             if self._restoreDrag then
@@ -3229,7 +3345,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.2
+AxelUI.Version = 6.3
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
