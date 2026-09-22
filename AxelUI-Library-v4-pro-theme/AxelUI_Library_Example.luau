@@ -1,6 +1,6 @@
 -- AxelUI Library showcase
 -- Replace this URL with your hosted/local loader when distributing it.
-local AxelUI = loadstring(game:HttpGet("YOUR_AXEL_UI_LIBRARY_URL"))()
+local AxelUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"))()
 
 local Window = AxelUI.CreateWindow({
     Name = "Axel Hub",
