@@ -1652,6 +1652,7 @@ function AxelUI:AddTab(data)
     pressAnimation(self, button)
     if #self.Tabs == 1 then self:SelectTab(tab) end
     if self._applyResponsive then self:_applyResponsive() end
+    if self.EmptyState then self.EmptyState.Visible = false end
     return tab
 end
 
@@ -3269,6 +3270,22 @@ function AxelUI.new(options)
     self.TabTitle = textLabel(tabHeader, "Dashboard", 15, self.Theme.Text, true); self.TabTitle.Position = UDim2.fromOffset(22, 6); self.TabTitle.Size = UDim2.new(1, -36, 0, 19)
     self.TabSubtitle = textLabel(tabHeader, "", 10, self.Theme.SubText, false); self.TabSubtitle.Position = UDim2.fromOffset(22, 24); self.TabSubtitle.Size = UDim2.new(1, -36, 0, 15)
     local separator = new("Frame", { BackgroundColor3 = self.Theme.Border, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1) }, tabHeader)
+    local emptyState = new("Frame", {
+        BackgroundColor3 = self.Theme.Surface,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.54, 0),
+        Size = UDim2.new(1, -36, 0, 112),
+        ZIndex = 4,
+    }, self.PageHolder)
+    corner(emptyState, 12); stroke(emptyState, self.Theme.Border, 0.22, 1)
+    local emptyIcon = icon(emptyState, "info", 20, self.Theme.Accent2)
+    emptyIcon.Position = UDim2.fromOffset(18, 28); emptyIcon.ZIndex = 5
+    local emptyTitle = textLabel(emptyState, "Nothing to show yet", 13, self.Theme.Text, true)
+    emptyTitle.Position = UDim2.fromOffset(54, 25); emptyTitle.Size = UDim2.new(1, -70, 0, 20); emptyTitle.ZIndex = 5
+    local emptyHint = textLabel(emptyState, "Run AxelUI_Library_Example.luau, or add a page with window:AddTab(...).", 10, self.Theme.SubText, false)
+    emptyHint.Position = UDim2.fromOffset(54, 49); emptyHint.Size = UDim2.new(1, -70, 0, 38); emptyHint.TextWrapped = true; emptyHint.ZIndex = 5
+    self.EmptyState = emptyState
 
     self.NotificationHolder = new("Frame", {
         AnchorPoint = Vector2.new(1, 0),
@@ -3491,7 +3508,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.5
+AxelUI.Version = 6.6
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
