@@ -1,11 +1,54 @@
 -- AxelUI dashboard showcase
--- Replace YOUR_AXEL_UI_LIBRARY_URL with the URL where you host AxelUI_Library.luau.
-local AxelUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau))()
+-- The old example called loadstring(...) immediately, so a missing URL or a
+-- non-executor environment produced: "attempt to call a nil value" on line 3.
+-- This bootstrap supports a preloaded global, a local executor file, or your
+-- own hosted URL without creating a blank UI or a cryptic nil() error.
+local function loadAxelUI()
+    local environment = _G
+    pcall(function()
+        if type(getgenv) == "function" then environment = getgenv() end
+    end)
+    if type(environment.AxelUI) == "table" then return environment.AxelUI end
+
+    local compiler = loadstring or load
+    if type(compiler) ~= "function" then
+        warn("[AxelUI] loadstring is unavailable. Run this from an executor or preload AxelUI_Library.luau first.")
+        return nil
+    end
+
+    if type(readfile) == "function" then
+        local ok, source = pcall(readfile, "AxelUI_Library.luau")
+        if ok and type(source) == "string" and #source > 0 then
+            local compiledOk, library = pcall(function() return compiler(source)() end)
+            if compiledOk and type(library) == "table" then return library end
+        end
+    end
+
+    local hostedUrl = "YOUR_AXEL_UI_LIBRARY_URL"
+    if hostedUrl == "" or hostedUrl:find("YOUR_", 1, true) then
+        warn("[AxelUI] Set hostedUrl, place AxelUI_Library.luau beside this script, or preload getgenv().AxelUI.")
+        return nil
+    end
+    local ok, source = pcall(function() return game:HttpGet(hostedUrl) end)
+    if not ok or type(source) ~= "string" then
+        warn("[AxelUI] Could not download the library: " .. tostring(source))
+        return nil
+    end
+    local compiledOk, library = pcall(function() return compiler(source)() end)
+    if not compiledOk or type(library) ~= "table" then
+        warn("[AxelUI] The downloaded library did not return AxelUI.")
+        return nil
+    end
+    return library
+end
+
+local AxelUI = loadAxelUI()
+if not AxelUI then return end
 
 local Window = AxelUI.CreateWindow({
     Name = "Axel Hub",
     Subtitle = "Play Further",
-    Footer = "AxelUI 5.7  •  Ready when you are",
+    Footer = "v1.0.0\nReady when you are",
     GuiName = "AxelHubUI",
     ToggleKeybind = "RightControl",
     -- Set this when your executor stores AxelLogo.png in a subfolder.
@@ -67,6 +110,7 @@ end
 
 safeElement(Home, "AddHero", {
     Image = "rbxassetid://86949082023913", -- replace with a scenic rbxassetid/local image if desired
+    ScaleType = Enum.ScaleType.Fit,
     WelcomeLabel = "Welcome to",
     WelcomeTitle = "Axel Hub",
     WelcomeContent = "Powerful tools. A smoother way to play.",
@@ -149,7 +193,7 @@ UtilityCard:AddButton({ Name = "Copy Discord link", Description = "Copy the Axel
     local copy = setclipboard or toclipboard
     if copy then copy("https://discord.gg/axelhub") end
 end })
-UtilityCard:AddButton({ Name = "Unload UI", Description = "Remove the interface and stop all listeners.", Icon = "power", Callback = function() Window:Unload() end })
+UtilityCard:AddButton({ Name = "Unload UI", Description = "Ask before removing the interface and its listeners.", Icon = "power", Callback = function() Window:ConfirmUnload() end })
 
 local Configs = Window:AddTab({ Name = "Configs", Description = "Save and load setups", Icon = "configs" })
 local ConfigCard = safeSection(Configs, { Name = "Configuration", Description = "Keep your favorite setups ready.", Side = "Left" })
