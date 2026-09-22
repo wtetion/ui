@@ -11,6 +11,10 @@ local function supportsShowcase(library)
         and type(library.TabMethods.AddPill) == "function"
         and type(library.SectionMethods) == "table"
         and type(library.SectionMethods.AddActionBar) == "function"
+        and type(library.SectionMethods.CreateToggle) == "function"
+        and type(library.SectionMethods.CreateMultiDropdown) == "function"
+        and type(library.SetGlass) == "function"
+        and tonumber(library.Version) ~= nil and tonumber(library.Version) >= 6.1
 end
 
 local function loadAxelUI()
@@ -37,7 +41,7 @@ local function loadAxelUI()
         local compiledOk, library = pcall(function() return compiler(source)() end)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks AddHero/AddPill/AddActionBar. Upload the bundled v6.0 library to that path.")
+            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.1 fixes/features. Upload the bundled v6.1 library to that path.")
         else
             warn("[AxelUI] GitHub source could not be compiled: " .. tostring(library))
         end
@@ -64,7 +68,7 @@ end
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
 if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v6.0 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
+    warn("[AxelUI] No compatible library found. Use the bundled v6.1 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
     return
 end
 
@@ -90,10 +94,14 @@ local Window = AxelUI.CreateWindow({
     -- This is the supplied Roblox asset. If the asset is unavailable in the
     -- current game, the library keeps its deterministic logo fallback visible.
     Logo = "rbxassetid://86949082023913",
+    -- The shell is slightly translucent; page, cards and controls remain dark/opaque.
+    Glass = { Enabled = true, Transparency = 0.1, AnimatedBorder = true, AnimationDuration = 3.2 },
+    TabAnimation = true,
+    TabAnimationDuration = 0.2,
     Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 6.0  •  Preparing your workspace",
+    LoadingSubtitle = "AxelUI 6.1  •  Preparing your workspace",
 })
 
 Window:Notify({
@@ -123,7 +131,7 @@ local function safeSection(tab, data)
     return setmetatable({}, {
         __index = function(_, key)
             local value = actual and actual[key]
-            if type(value) == "function" and string.sub(key, 1, 3) == "Add" then
+            if type(value) == "function" and (string.sub(key, 1, 3) == "Add" or string.sub(key, 1, 6) == "Create") then
                 return function(_, payload) return safeElement(actual, key, payload) end
             end
             return value
@@ -210,6 +218,9 @@ local Visuals = Window:AddTab({ Name = "Visuals", Description = "Clean visual co
 local VisualCard = safeSection(Visuals, { Name = "Visuals", Description = "Optional visual helpers.", Side = "Left" })
 VisualCard:AddToggle({ Name = "Show Hitboxes", Description = "Visualize important objects.", Icon = "grid", Default = false })
 VisualCard:AddToggle({ Name = "Monochrome screen", Description = "Toggle the black and white display effect.", Icon = "contrast", Default = false })
+VisualCard:CreateMultiDropdown({ Name = "Visible overlays", Description = "Choose several visual layers at once.", Icon = "layers", Options = { "Boxes", "Names", "Distance", "Tracers" }, Default = { "Boxes", "Names" }, Flag = "visual_overlays" })
+VisualCard:CreateColorPicker({ Name = "Highlight color", Description = "Choose a UI accent for this visual group.", Icon = "palette", Default = Color3.fromRGB(255, 193, 7) })
+VisualCard:CreateInput({ Name = "Filter visuals", Description = "A searchable text field with a callback.", Icon = "search", Placeholder = "Type a filter...", Flag = "visual_filter" })
 
 local Utilities = Window:AddTab({ Name = "Utilities", Description = "Useful one-click tools", Icon = "utilities" })
 local UtilityCard = safeSection(Utilities, { Name = "Quick Actions", Description = "Common features, one click away.", Side = "Left" })
@@ -218,6 +229,7 @@ UtilityCard:AddButton({ Name = "Copy Discord link", Description = "Copy the Axel
     if copy then copy("https://discord.gg/axelhub") end
 end })
 UtilityCard:AddButton({ Name = "Unload UI", Description = "Ask before removing the interface and its listeners.", Icon = "power", Callback = function() Window:ConfirmUnload() end })
+UtilityCard:CreateToggle({ Name = "Glass outer shell", Description = "Only the outside shell changes; controls stay solid.", Icon = "layers", Default = Window.GlassEnabled, Callback = function(enabled) Window:SetGlass(enabled) end })
 
 local Configs = Window:AddTab({ Name = "Configs", Description = "Save and load setups", Icon = "configs" })
 local ConfigCard = safeSection(Configs, { Name = "Configuration", Description = "Keep your favorite setups ready.", Side = "Left" })
