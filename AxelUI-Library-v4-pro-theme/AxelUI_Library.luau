@@ -1827,7 +1827,7 @@ function AxelUI.TabMethods:LayoutPills()
     local heroTop = self.HideHeader and (mobile and 16 or 18) or 50
     -- Give the pills a little more room from the hero and from the card row
     -- below so the outlines don't look crowded or collide with nearby edges.
-    local pillY = heroHeight > 0 and (heroTop + heroHeight - 2) or 44
+    local pillY = heroHeight > 0 and (heroTop + heroHeight + 4) or 50
     local bodyY = heroHeight > 0 and (heroTop + heroHeight + 48) or 92
     local bodyBottom = heroHeight > 0 and (heroTop + heroHeight + 58) or 102
     self.PillBar.Position = UDim2.fromOffset(mobile and 8 or 13, pillY)
