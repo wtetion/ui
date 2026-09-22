@@ -1,6 +1,6 @@
 -- AxelUI dashboard showcase
 -- Replace YOUR_AXEL_UI_LIBRARY_URL with the URL where you host AxelUI_Library.luau.
-local AxelUI = loadstring(game:HttpGet("https://github.com/wtetion/ui/blob/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"))()
+local AxelUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau))()
 
 local Window = AxelUI.CreateWindow({
     Name = "Axel Hub",
