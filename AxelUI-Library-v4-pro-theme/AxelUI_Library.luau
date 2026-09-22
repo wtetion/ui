@@ -128,14 +128,21 @@ local function asset(value)
 end
 
 local function imageSource(value)
+    if type(value) == "table" then
+        value = value.Image or value.Asset or value.Id or value.Source
+    end
     local source = asset(value)
     if not source then return nil end
     if source:find("://", 1, true) then return source end
-    local ok, custom = pcall(function()
-        if type(getcustomasset) == "function" then return getcustomasset(source) end
-        if type(getsynasset) == "function" then return getsynasset(source) end
-    end)
-    return ok and custom or source
+    if type(getcustomasset) == "function" then
+        local ok, custom = pcall(getcustomasset, source)
+        if ok and custom then return custom end
+    end
+    if type(getsynasset) == "function" then
+        local ok, custom = pcall(getsynasset, source)
+        if ok and custom then return custom end
+    end
+    return source
 end
 
 local function fontFace(value, bold)
@@ -214,16 +221,11 @@ end
 local function icon(parent, value, size, tint)
     local config = type(value) == "table" and value or nil
     local source = config and (config.Image or config.Asset or config.Id or config.Source) or value
-    local image = imageSource(value)
     local image = imageSource(source)
     if image then
-        return new("ImageLabel", {
         local imageLabel = new("ImageLabel", {
             BackgroundTransparency = 1,
             Image = image,
-            ImageColor3 = tint or Color3.new(1, 1, 1),
-            Size = UDim2.fromOffset(size or 18, size or 18),
-            ScaleType = Enum.ScaleType.Fit,
             ImageColor3 = (config and config.Color) or tint or Color3.new(1, 1, 1),
             Size = UDim2.fromOffset((config and config.Size) or size or 18, (config and config.Size) or size or 18),
             ScaleType = (config and config.ScaleType) or Enum.ScaleType.Fit,
@@ -232,7 +234,6 @@ local function icon(parent, value, size, tint)
         if config and config.ImageRectSize then imageLabel.ImageRectSize = config.ImageRectSize end
         return imageLabel
     end
-    return textLabel(parent, tostring(value or "•"), size or 18, tint or Color3.new(1, 1, 1), true)
     return textLabel(parent, tostring(source or "icon"), size or 18, tint or Color3.new(1, 1, 1), true)
 end
 
@@ -323,7 +324,6 @@ function AxelUI:_makeRow(parent, data, height)
         BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2,
         BorderSizePixel = 0,
         Text = "",
-        Size = UDim2.new(1, 0, 0, height or 38),
         Size = UDim2.new(1, 0, 0, rowHeight),
         LayoutOrder = data.LayoutOrder or 0,
     }, parent)
@@ -732,11 +732,28 @@ function AxelUI:SetFont(font)
     -- requested font. This keeps the method safe even on old executors.
 end
 
+local function preserveHeight(instance, height)
+    if not instance then return end
+    local size = instance.Size
+    instance.Size = UDim2.new(size.X.Scale, size.X.Offset, 0, math.max(0, height or 0))
+end
+
+local function bindVerticalLayout(window, parent, layout, extra, onSize)
+    local function sync()
+        local height = (layout.AbsoluteContentSize and layout.AbsoluteContentSize.Y or 0) + (extra or 0)
+        preserveHeight(parent, height)
+        if onSize then onSize(height) end
+    end
+    connect(window, layout:GetPropertyChangedSignal("AbsoluteContentSize"), sync)
+    task.defer(sync)
+    return sync
+end
+
 local function makePageColumns(window, page, topOffset)
     topOffset = topOffset or 50
     local pageBody = new("ScrollingFrame", {
         Active = true,
-        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        AutomaticCanvasSize = Enum.AutomaticSize.None,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         CanvasSize = UDim2.new(),
@@ -748,18 +765,15 @@ local function makePageColumns(window, page, topOffset)
     pad(pageBody, 0, 5, 0, 10)
     local columns = new("Frame", {
         BackgroundTransparency = 1,
-        AutomaticSize = Enum.AutomaticSize.Y,
         Size = UDim2.new(1, 0, 0, 0),
     }, pageBody)
     local leftColumn = new("Frame", {
         BackgroundTransparency = 1,
-        AutomaticSize = Enum.AutomaticSize.Y,
         Size = UDim2.new(0.5, -5, 0, 0),
         LayoutOrder = 1,
     }, columns)
     local rightColumn = new("Frame", {
         BackgroundTransparency = 1,
-        AutomaticSize = Enum.AutomaticSize.Y,
         Size = UDim2.new(0.5, -5, 0, 0),
         LayoutOrder = 2,
     }, columns)
@@ -771,6 +785,16 @@ local function makePageColumns(window, page, topOffset)
     }, columns)
     local leftLayout = new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, leftColumn)
     local rightLayout = new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, rightColumn)
+    local function syncColumns()
+        preserveHeight(leftColumn, leftLayout.AbsoluteContentSize.Y)
+        preserveHeight(rightColumn, rightLayout.AbsoluteContentSize.Y)
+        preserveHeight(columns, columnLayout.AbsoluteContentSize.Y)
+        pageBody.CanvasSize = UDim2.new(0, 0, 0, columnLayout.AbsoluteContentSize.Y + 18)
+    end
+    connect(window, leftLayout:GetPropertyChangedSignal("AbsoluteContentSize"), syncColumns)
+    connect(window, rightLayout:GetPropertyChangedSignal("AbsoluteContentSize"), syncColumns)
+    connect(window, columnLayout:GetPropertyChangedSignal("AbsoluteContentSize"), syncColumns)
+    task.defer(syncColumns)
     return pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout
 end
 
@@ -778,7 +802,6 @@ local function makeSubTabCard(window, parent, title)
     local card = new("Frame", {
         BackgroundColor3 = window.Theme.Surface,
         BorderSizePixel = 0,
-        AutomaticSize = Enum.AutomaticSize.Y,
         Size = UDim2.new(1, -5, 0, 0),
     }, parent)
     corner(card, 8)
@@ -789,11 +812,13 @@ local function makeSubTabCard(window, parent, title)
     cardTitle.Size = UDim2.new(1, -10, 0, 20)
     local body = new("Frame", {
         BackgroundTransparency = 1,
-        AutomaticSize = Enum.AutomaticSize.Y,
         Size = UDim2.new(1, 0, 0, 0),
     }, card)
     pad(body, 10, 10, 2, 10)
     local layout = new("UIListLayout", { Padding = UDim.new(0, 7), SortOrder = Enum.SortOrder.LayoutOrder }, body)
+    bindVerticalLayout(window, body, layout, 12, function(height)
+        preserveHeight(card, 32 + height)
+    end)
     return card, body, layout
 end
 
@@ -968,7 +993,6 @@ function AxelUI.TabMethods:AddSubTab(data)
 
     connect(self.Window, button.MouseButton1Click, function() self:SelectSubTab(subtab) end)
     pressAnimation(self.Window, button)
-    if #self.SubTabs == 1 then self:SelectSubTab(subtab) end
     if #self.SubTabs == 1 then
         self:SelectSubTab(subtab)
     else
@@ -1004,13 +1028,13 @@ function AxelUI.TabMethods:AddSection(data)
     local card = new("Frame", {
         BackgroundColor3 = self.Window.Theme.Surface,
         BorderSizePixel = 0,
-        AutomaticSize = Enum.AutomaticSize.Y,
         Size = UDim2.new(1, -5, 0, 0),
         LayoutOrder = data.LayoutOrder or 0,
     }, parent)
     corner(card, 7)
     stroke(card, self.Window.Theme.Border, 0.28, 1)
-    local header = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, data.Description ~= "" and 53 or 35) }, card)
+    local headerHeight = data.Description ~= "" and 53 or 35
+    local header = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, headerHeight) }, card)
     pad(header, 12, 12, 8, 4)
     local title = textLabel(header, section.Name, 14, self.Window.Theme.Text, true)
     title.Size = UDim2.new(1, -52, 0, 18)
@@ -1032,9 +1056,15 @@ function AxelUI.TabMethods:AddSection(data)
         description.Position = UDim2.fromOffset(0, 20)
         description.TextWrapped = true
     end
-    local body = new("Frame", { BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0) }, card)
+    local body = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0) }, card)
     pad(body, 10, 10, 2, 10)
     local layout = new("UIListLayout", { Padding = UDim.new(0, 7), SortOrder = Enum.SortOrder.LayoutOrder }, body)
+    local syncBodyHeight
+    syncBodyHeight = bindVerticalLayout(self.Window, body, layout, 12, function(height)
+        if not section.Collapsed then
+            preserveHeight(card, headerHeight + height)
+        end
+    end)
     section.Card, section.Body, section.Layout, section.Toggle = card, body, layout, collapseButton
     function section:SetCollapsed(value)
         self.Collapsed = value == true
@@ -1042,10 +1072,12 @@ function AxelUI.TabMethods:AddSection(data)
         tween(collapseButton, { BackgroundColor3 = self.Collapsed and self.Window.Theme.Surface2 or self.Window.Theme.Element }, 0.16)
         if self.Collapsed then
             tween(body, { BackgroundTransparency = 1 }, 0.12)
+            preserveHeight(card, headerHeight)
             task.delay(0.12, function() if body.Parent and self.Collapsed then body.Visible = false end end)
         else
             body.Visible = true
             tween(body, { BackgroundTransparency = 1 }, 0.14)
+            if syncBodyHeight then syncBodyHeight() end
         end
     end
     connect(self.Window, collapseButton.MouseButton1Click, function() section:SetCollapsed(not section.Collapsed) end)
@@ -1058,7 +1090,6 @@ function AxelUI.SectionMethods:AddDescription(text)
     local label = textLabel(self.Body, text, 11, self.Window.Theme.SubText, false)
     local description = tostring(text or "")
     local lines = select(2, description:gsub("\n", "\n")) + 1
-    label.Size = UDim2.new(1, 0, 0, 26)
     label.Size = UDim2.new(1, 0, 0, math.max(26, lines * 16))
     label.TextWrapped = true
     self.Window:_registerSearch(label, text)
@@ -1076,15 +1107,14 @@ end
 
 function AxelUI.SectionMethods:AddParagraph(data)
     data = data or {}
-    local wrapper = new("Frame", { BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0) }, self.Body)
+    local contentText = tostring(data.Content or "")
+    local lineCount = select(2, contentText:gsub("\n", "\n")) + 1
+    local contentHeight = tonumber(data.Height) or math.max(36, lineCount * 16, (#contentText > 90 and 52 or 0))
+    local wrapper = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 19 + contentHeight) }, self.Body)
     local title = textLabel(wrapper, data.Title or data.Name or "Info", 12, self.Window.Theme.Accent2, true)
     title.Size = UDim2.new(1, 0, 0, 18)
     local content = textLabel(wrapper, data.Content or "", 11, self.Window.Theme.SubText, false)
     content.Position = UDim2.fromOffset(0, 19)
-    local contentText = tostring(data.Content or "")
-    local lineCount = select(2, contentText:gsub("\n", "\n")) + 1
-    local contentHeight = tonumber(data.Height) or math.max(36, lineCount * 16, (#contentText > 90 and 52 or 0))
-    content.Size = UDim2.new(1, 0, 0, data.Height or 36)
     content.Size = UDim2.new(1, 0, 0, contentHeight)
     content.TextWrapped = true
     content.TextYAlignment = Enum.TextYAlignment.Top
@@ -1107,9 +1137,10 @@ function AxelUI.SectionMethods:AddBanner(data)
         ClipsDescendants = true,
     }, self.Body)
     corner(holder, 8); stroke(holder, self.Window.Theme.Border, 0.18, 1)
+    local source = imageSource(data.Image or data.Source or data.Asset)
     local picture = new("ImageLabel", {
         BackgroundTransparency = 1,
-        Image = imageSource(data.Image or data.Source or data.Asset),
+        Image = source or "",
         ImageColor3 = Color3.new(1, 1, 1),
         ImageTransparency = tonumber(data.ImageTransparency) or 0.18,
         ScaleType = data.ScaleType or Enum.ScaleType.Crop,
@@ -1131,10 +1162,24 @@ function AxelUI.SectionMethods:AddBanner(data)
         }),
         Rotation = 0,
     }, shade)
+    local fallback = textLabel(holder, data.FallbackText or "Image unavailable", 10, self.Window.Theme.SubText, true)
+    fallback.AnchorPoint = Vector2.new(0.5, 0.5)
+    fallback.Position = UDim2.fromScale(0.5, 0.72)
+    fallback.Size = UDim2.new(1, -28, 0, 18)
+    fallback.TextXAlignment = Enum.TextXAlignment.Center
+    fallback.ZIndex = 3
+    fallback.Visible = source == nil
+    pcall(function()
+        connect(self.Window, picture.ImageFailed, function()
+            picture.Visible = false
+            shade.BackgroundTransparency = 0.08
+            fallback.Visible = true
+        end)
+    end)
     local title = textLabel(holder, data.Title or data.Name or "Welcome", 14, self.Window.Theme.Text, true)
-    title.Position = UDim2.fromOffset(14, 14); title.Size = UDim2.new(1, -28, 0, 22); title.ZIndex = 3
+    title.Position = UDim2.fromOffset(14, 14); title.Size = UDim2.new(1, -28, 0, 22); title.ZIndex = 4
     local content = textLabel(holder, data.Content or data.Description or "", 10, self.Window.Theme.SubText, false)
-    content.Position = UDim2.fromOffset(14, 39); content.Size = UDim2.new(1, -170, 0, 34); content.TextWrapped = true; content.ZIndex = 3
+    content.Position = UDim2.fromOffset(14, 39); content.Size = UDim2.new(1, -170, 0, 34); content.TextWrapped = true; content.ZIndex = 4
     local action
     if data.Button or data.ActionText then
         action = new("TextButton", {
@@ -1147,7 +1192,7 @@ function AxelUI.SectionMethods:AddBanner(data)
             FontFace = fontFace(nil, true),
             Size = UDim2.fromOffset(112, 28),
             Position = UDim2.new(1, -126, 0.5, -14),
-            ZIndex = 3,
+            ZIndex = 4,
         }, holder)
         corner(action, 7); pressAnimation(self.Window, action)
         connect(self.Window, action.MouseButton1Click, function()
@@ -1155,7 +1200,7 @@ function AxelUI.SectionMethods:AddBanner(data)
         end)
     end
     self.Window:_registerSearch(holder, tostring(data.Title or "") .. " " .. tostring(data.Content or ""))
-    return { Instance = holder, Image = picture, Title = title, Content = content, Button = action }
+    return { Instance = holder, Image = picture, Fallback = fallback, Title = title, Content = content, Button = action }
 end
 
 AxelUI.SectionMethods.AddHero = AxelUI.SectionMethods.AddBanner
@@ -1170,15 +1215,30 @@ function AxelUI.SectionMethods:AddImage(data)
     }, self.Body)
     corner(holder, 6)
     stroke(holder, self.Window.Theme.Border, 0.22, 1)
+    local source = imageSource(data.Image or data.Source or data.Asset)
     local picture = new("ImageLabel", {
         BackgroundTransparency = 1,
-        Image = imageSource(data.Image or data.Source or data.Asset),
+        Image = source or "",
         ImageColor3 = data.Tint or Color3.new(1, 1, 1),
         ScaleType = data.ScaleType or Enum.ScaleType.Fit,
         Size = UDim2.new(1, -12, 1, data.Caption and -30 or -12),
         Position = UDim2.fromOffset(6, 6),
+        ZIndex = 1,
     }, holder)
     corner(picture, 5)
+    local fallback = textLabel(holder, data.FallbackText or "Image unavailable", 10, self.Window.Theme.SubText, true)
+    fallback.AnchorPoint = Vector2.new(0.5, 0.5)
+    fallback.Position = UDim2.fromScale(0.5, data.Caption and 0.44 or 0.5)
+    fallback.Size = UDim2.new(1, -24, 0, 18)
+    fallback.TextXAlignment = Enum.TextXAlignment.Center
+    fallback.ZIndex = 2
+    fallback.Visible = source == nil
+    pcall(function()
+        connect(self.Window, picture.ImageFailed, function()
+            picture.Visible = false
+            fallback.Visible = true
+        end)
+    end)
     if data.Caption then
         local caption = textLabel(holder, data.Caption, 10, self.Window.Theme.SubText, false)
         caption.Position = UDim2.new(0, 8, 1, -24)
@@ -1186,7 +1246,7 @@ function AxelUI.SectionMethods:AddImage(data)
         caption.TextXAlignment = Enum.TextXAlignment.Center
     end
     self.Window:_registerSearch(holder, tostring(data.Caption or data.Name or "Image"))
-    return { Instance = holder, Image = picture }
+    return { Instance = holder, Image = picture, Fallback = fallback }
 end
 
 function AxelUI.SectionMethods:AddButton(data)
@@ -1507,7 +1567,6 @@ function AxelUI.SectionMethods:AddColorPicker(data)
         popup = new("Frame", {
             BackgroundColor3 = self.Window.Theme.Surface,
             BorderSizePixel = 0,
-            Size = UDim2.fromOffset(154, 76),
             Size = UDim2.fromOffset(170, 82),
             ZIndex = 70,
         }, self.Window.Gui)
@@ -1674,7 +1733,7 @@ function AxelUI.new(options)
 
     self.Window = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = self.DesktopSize, ClipsDescendants = true }, self.Gui)
     corner(self.Window, 9)
-    self.GlowStroke = stroke(self.Window, self.Theme.Accent, 0.58, 1.25)
+    self.GlowStroke = stroke(self.Window, self.Theme.Accent, 0.42, 1.25)
     new("UIGradient", {
         Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, self.Theme.Background),
@@ -1830,8 +1889,6 @@ end
 
 AxelUI.Version = 3.1
 
-function AxelUI:CreateWindow(options)
-    return self.new(options)
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
 end
