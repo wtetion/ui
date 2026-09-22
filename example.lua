@@ -1,14 +1,21 @@
 -- AxelUI Library example
 -- Replace this URL with your own hosted/local loader when distributing it.
-local AxelUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/me.lua"))()
+local AxelUI = loadstring(game:HttpGet("YOUR_AXEL_UI_LIBRARY_URL"))()
 
 local Window = AxelUI.new({
     Name = "Axel Hub",
     Subtitle = "Steal an Egg - Control Center",
     GuiName = "AxelHubUI",
+    ToggleKeybind = "RightControl",
     -- Put AxelLogo.png beside the script, or replace this with an asset id.
     Logo = "AxelLogo.png",
     LoadingText = "Preparing dashboard...",
+})
+
+Window:Notify({
+    Title = "Axel Hub",
+    Content = "Press RightControl or use the floating touch button to show or hide the UI.",
+    Type = "success",
 })
 
 local Dashboard = Window:AddTab({
@@ -35,6 +42,14 @@ DashboardSection:AddButton({
     Callback = function()
         local copy = setclipboard or toclipboard
         if copy then copy("https://discord.gg/axelhub") end
+    end,
+})
+DashboardSection:AddButton({
+    Name = "Show notification",
+    Description = "Demonstrates the built-in notification stack.",
+    Icon = "info",
+    Callback = function()
+        Window:Notify("Status", "The notification system is working.", "info")
     end,
 })
 
