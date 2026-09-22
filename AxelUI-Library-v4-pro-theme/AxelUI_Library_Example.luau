@@ -1,6 +1,6 @@
 -- AxelUI Library example
 -- Replace this URL with your own hosted/local loader when distributing it.
-local AxelUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"))()
+local AxelUI = loadstring(game:HttpGet("YOUR_AXEL_UI_LIBRARY_URL"))()
 
 local Window = AxelUI.new({
     Name = "Axel Hub",
@@ -34,6 +34,14 @@ local DashboardSection = Dashboard:AddSection({
     Side = "Left",
 })
 DashboardSection:AddStatus({ Name = "Runner status", Text = "Online", Color = Window.Theme.Success })
+DashboardSection:AddBanner({
+    Image = "AxelLogo.png",
+    Title = "Customize your experience",
+    Content = "Banner supports local images, asset ids, overlay text and an animated action button.",
+    Button = "Get Started",
+    Callback = function() Window:Notify("Axel Hub", "Banner action pressed.", "info") end,
+    Height = 112,
+})
 DashboardSection:AddImage({ Image = "AxelLogo.png", Caption = "AXEL HUB", Height = 138 })
 DashboardSection:AddParagraph({
     Title = "How it works",
