@@ -2526,8 +2526,8 @@ function AxelUI.SectionMethods:AddDropdown(data)
     end
     local function open()
         if popup then close(); return end
-        local popupWidth = 132
-        local popupHeight = math.min(#options * 27 + 4, 210)
+        local popupWidth = 120
+        local popupHeight = math.min(#options * 26 + 3, 190)
         popup = new("ScrollingFrame", {
             Active = true,
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -2540,17 +2540,17 @@ function AxelUI.SectionMethods:AddDropdown(data)
             Size = UDim2.fromOffset(popupWidth, popupHeight),
             ZIndex = 50,
         }, self.Window.Gui)
-        corner(popup, 5); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 3, 3, 3, 3)
+        corner(popup, 5); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 2, 2, 2, 2)
         placePopup(popup, selector, popupWidth, popupHeight, true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
-        local list = new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
+        local list = new("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
         for _, option in ipairs(options) do
             local optionButton = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Surface2, BorderSizePixel = 0, Text = tostring(option), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.new(1, 0, 0, 25), ZIndex = 51 }, popup)
             corner(optionButton, 4)
             pressAnimation(self.Window, optionButton)
             connect(self.Window, optionButton.MouseEnter, function() tween(optionButton, { BackgroundColor3 = self.Window.Theme.ElementHover }, 0.1) end)
             connect(self.Window, optionButton.MouseLeave, function() tween(optionButton, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.12) end)
-            connect(self.Window, optionButton.MouseButton1Click, function()
+            connect(self.Window, optionButton.Activated, function()
                 handle.Value = option; selector.Text = tostring(option); close()
                 if type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback, option) end) end
             end)
@@ -2562,7 +2562,7 @@ function AxelUI.SectionMethods:AddDropdown(data)
         if not silent and type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback, value) end) end
     end
     function handle:Get() return self.Value end
-    connect(self.Window, selector.MouseButton1Click, open)
+    connect(self.Window, selector.Activated, open)
     pressAnimation(self.Window, selector)
     self.Window:_registerFlag(data.Flag, handle)
     table.insert(self.Controls, handle)
@@ -2640,8 +2640,8 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
     end
     local function open()
         if popup then close(); return end
-        local popupWidth = 160
-        local popupHeight = math.min(#options * 27 + 4, 210)
+        local popupWidth = 140
+        local popupHeight = math.min(#options * 26 + 3, 190)
         popup = new("ScrollingFrame", {
             Active = true,
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -2654,10 +2654,10 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
             Size = UDim2.fromOffset(popupWidth, popupHeight),
             ZIndex = 60,
         }, self.Window.Gui)
-        corner(popup, 7); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 3, 3, 3, 3)
+        corner(popup, 7); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 2, 2, 2, 2)
         placePopup(popup, selector, popupWidth, popupHeight, true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
-        new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
+        new("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
         for _, option in ipairs(options) do
             local value = tostring(option)
             local optionButton = new("TextButton", {
@@ -2679,7 +2679,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
                 tween(optionButton, { BackgroundColor3 = selectedSet[value] and self.Window.Theme.ElementHover or self.Window.Theme.Surface2 }, 0.12)
             end)
             optionButtons[value] = optionButton
-            connect(self.Window, optionButton.MouseButton1Click, function()
+            connect(self.Window, optionButton.Activated, function()
                 if selectedSet[value] then
                     selectedSet[value] = nil
                     for index, item in ipairs(selected) do
@@ -2712,7 +2712,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         for index, value in ipairs(selected) do result[index] = value end
         return result
     end
-    connect(self.Window, selector.MouseButton1Click, open)
+    connect(self.Window, selector.Activated, open)
     pressAnimation(self.Window, selector)
     self.Window:_registerFlag(data.Flag, handle)
     table.insert(self.Controls, handle)
