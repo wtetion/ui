@@ -1498,16 +1498,16 @@ function AxelUI:_applyResponsive()
         if tab.SubTabBar then
             local heroHeight = tab.Hero and (mobile and (tab.HeroMobileHeight or tab.HeroHeight or 104) or (tab.HeroHeight or 104)) or 0
             local heroTop = tab.HideHeader and (mobile and 16 or 18) or 50
-            local pillY = heroHeight > 0 and (heroTop + heroHeight + 10) or 50
+            local pillY = heroHeight > 0 and (heroTop + heroHeight + 4) or 50
             tab.SubTabBar.Position = UDim2.fromOffset(mobile and 8 or 13, pillY)
-            tab.SubTabBar.Size = UDim2.new(1, mobile and -16 or -26, 0, 30)
+            tab.SubTabBar.Size = UDim2.new(1, mobile and -16 or -26, 0, 42)
         end
         for _, subtab in ipairs(tab.SubTabs or {}) do
             if subtab.PageBody then
                 local heroHeight = tab.Hero and (mobile and (tab.HeroMobileHeight or tab.HeroHeight or 104) or (tab.HeroHeight or 104)) or 0
                 local heroTop = tab.HideHeader and (mobile and 16 or 18) or 50
-                local contentY = heroHeight > 0 and (heroTop + heroHeight + 54) or 86
-                local contentBottom = heroHeight > 0 and (heroTop + heroHeight + 64) or 96
+                local contentY = heroHeight > 0 and (heroTop + heroHeight + 54) or 98
+                local contentBottom = heroHeight > 0 and (heroTop + heroHeight + 64) or 108
                 subtab.PageBody.Position = UDim2.fromOffset(mobile and 8 or 13, contentY)
                 subtab.PageBody.Size = UDim2.new(1, mobile and -16 or -26, 1, -contentBottom)
             end
@@ -2011,14 +2011,27 @@ function AxelUI.TabMethods:AddSubTab(data)
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(),
             Position = UDim2.fromOffset(13, 50),
+            ClipsDescendants = true,
             ScrollBarThickness = 0,
-            Size = UDim2.new(1, -26, 0, 30),
+            Size = UDim2.new(1, -26, 0, 42),
             Visible = true,
         }, self.Page)
-        new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 7), SortOrder = Enum.SortOrder.LayoutOrder }, self.SubTabBar)
+        new("UIPadding", {
+            PaddingLeft = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 10),
+            PaddingTop = UDim.new(0, 2),
+            PaddingBottom = UDim.new(0, 2),
+        }, self.SubTabBar)
+        new("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            HorizontalAlignment = Enum.HorizontalAlignment.Left,
+            Padding = UDim.new(0, 12),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+        }, self.SubTabBar)
     end
 
-        local buttonWidth = math.max(92, math.min(190, #subtab.Name * 7 + 30))
+    local buttonWidth = math.max(70, math.min(132, #subtab.Name * 7 + 28))
     local button = new("TextButton", {
         AutoButtonColor = false,
         BackgroundColor3 = self.Window.Theme.Element,
@@ -2044,12 +2057,12 @@ local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, righ
         leftLayout, rightLayout = self.Layout, self.RightBody and self.RightBody:FindFirstChildOfClass("UIListLayout")
         local heroHeight = self.Hero and (self.Window.IsMobile and (self.HeroMobileHeight or self.HeroHeight or 104) or (self.HeroHeight or 104)) or 0
         local heroTop = self.HideHeader and (self.Window.IsMobile and 16 or 18) or 50
-        local contentY = heroHeight > 0 and (heroTop + heroHeight + 54) or 86
-        local contentBottom = heroHeight > 0 and (heroTop + heroHeight + 64) or 96
+        local contentY = heroHeight > 0 and (heroTop + heroHeight + 54) or 98
+        local contentBottom = heroHeight > 0 and (heroTop + heroHeight + 64) or 108
         self.PageBody.Position = UDim2.fromOffset(13, contentY)
         self.PageBody.Size = UDim2.new(1, -26, 1, -contentBottom)
     else
-        pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout = makePageColumns(self.Window, self.Page, 86)
+        pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout = makePageColumns(self.Window, self.Page, 98)
     end
     local card, body, layout = makeSubTabCard(self.Window, leftColumn, subtab.Name)
     subtab.PageBody, subtab.Columns = pageBody, columns
@@ -2059,7 +2072,7 @@ local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, righ
     subtab._nextSide = "Left"
     table.insert(self.SubTabs, subtab)
 
-        connect(self.Window, button.MouseButton1Click, function() self:SelectSubTab(subtab) end)
+    connect(self.Window, button.MouseButton1Click, function() self:SelectSubTab(subtab) end)
     connect(self.Window, button.MouseEnter, function()
         if not subtab.Active then
             tween(subtabStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.05 }, 0.13)
@@ -2073,7 +2086,8 @@ local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, righ
         end
     end)
     addButtonGlass(self.Window, button, 0)
-    pressAnimation(self.Window, button)if #self.SubTabs == 1 then
+    pressAnimation(self.Window, button)
+    if #self.SubTabs == 1 then
         self:SelectSubTab(subtab)
     else
         self:SelectSubTab(self.ActiveSubTab or self.SubTabs[1])
@@ -3689,7 +3703,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.93
+AxelUI.Version = 6.94
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
