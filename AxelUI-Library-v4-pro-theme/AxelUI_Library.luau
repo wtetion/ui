@@ -1552,6 +1552,12 @@ local function bindVerticalLayout(window, parent, layout, extra, onSize)
 end
 
 local function makePageColumns(window, page, topOffset)
+    -- AddTab is called on the window, while AddSubTab is called on a tab.
+    -- Normalize both owners here so layout helpers always receive the window
+    -- (Theme, connection registry, mobile state), never the tab wrapper.
+    if not window.Theme and window.Window and window.Window.Theme then
+        window = window.Window
+    end
     topOffset = topOffset or 50
     local pageBody = new("ScrollingFrame", {
         Active = true,
@@ -1843,7 +1849,7 @@ function AxelUI.TabMethods:LayoutPills()
     self.PageBody.Size = UDim2.new(1, mobile and -16 or -26, 1, -bodyBottom)
 end
 
-function AxelUI.TabMethods:SelectPill(pill)
+function AxelUI.TabMethods:SelectPill(pill, silent)
     if not pill then return end
     for _, other in ipairs(self.Pills or {}) do
         local active = other == pill
@@ -1855,7 +1861,21 @@ function AxelUI.TabMethods:SelectPill(pill)
         setTextColor(other.Title, active and self.Window.Theme.Background or self.Window.Theme.Accent2)
     end
     self.ActivePill = pill
-    if type(pill.Callback) == "function" then
+    local selectedFilter = string.lower(tostring(pill.Filter or pill.Name or "overview"))
+    local showAll = selectedFilter == "" or selectedFilter == "overview" or selectedFilter == "all"
+    for _, section in ipairs(self.Sections or {}) do
+        local sectionFilter = section.PillFilter
+        if section.Card and sectionFilter ~= nil then
+            section.Card.Visible = showAll or string.lower(tostring(sectionFilter)) == selectedFilter
+        elseif section.Card and not showAll then
+            -- Unassigned sections are part of the overview, not unrelated
+            -- category pages. This keeps each pill scoped to its own controls.
+            section.Card.Visible = false
+        elseif section.Card then
+            section.Card.Visible = true
+        end
+    end
+    if not silent and type(pill.Callback) == "function" then
         task.spawn(function() pcall(pill.Callback, pill) end)
     end
 end
@@ -1903,7 +1923,17 @@ function AxelUI.TabMethods:AddPill(data)
     local pillStroke = stroke(button, self.Window.Theme.Border, 0.38, 0.75)
     local goldGradient = addGoldGradient(self.Window, button)
     local title = button
-    local pill = { Tab = self, Button = button, Title = title, Stroke = pillStroke, GoldGradient = goldGradient, Name = name, Callback = data.Callback or data.callback, Active = false }
+    local pill = {
+        Tab = self,
+        Button = button,
+        Title = title,
+        Stroke = pillStroke,
+        GoldGradient = goldGradient,
+        Name = name,
+        Filter = data.Filter or data.Category or name,
+        Callback = data.Callback or data.callback,
+        Active = false,
+    }
     table.insert(self.Pills, pill)
     connect(self.Window, button.MouseButton1Click, function() self:SelectPill(pill) end)
     connect(self.Window, button.MouseEnter, function()
@@ -1991,7 +2021,7 @@ function AxelUI.TabMethods:AddSubTab(data)
         self.PageBody.Position = UDim2.fromOffset(13, contentY)
         self.PageBody.Size = UDim2.new(1, -26, 1, -contentBottom)
     else
-        pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout = makePageColumns(self, self.Page, 86)
+        pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout = makePageColumns(self.Window, self.Page, 86)
     end
     local card, body, layout = makeSubTabCard(self.Window, leftColumn, subtab.Name)
     subtab.PageBody, subtab.Columns = pageBody, columns
@@ -2019,6 +2049,7 @@ function AxelUI.TabMethods:AddSection(data)
         Window = self.Window,
         Name = tostring(data.Name or data.Title or "Section"),
         Description = tostring(data.Description or ""),
+        PillFilter = data.Pill or data.Category or data.Filter,
         Controls = {},
         Collapsed = false,
     }
@@ -2101,6 +2132,7 @@ function AxelUI.TabMethods:AddSection(data)
     pressAnimation(self.Window, collapseButton)
     self.Window:_registerSearch(card, section.Name .. " " .. section.Description, title, { Container = true })
     table.insert(self.Sections, section)
+    if self.ActivePill then self:SelectPill(self.ActivePill, true) end
     return section
 end
 
@@ -2562,6 +2594,23 @@ function AxelUI.SectionMethods:AddDropdown(data)
         if not silent and type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback, value) end) end
     end
     function handle:Get() return self.Value end
+    function handle:SetOptions(nextOptions)
+        if popup then close() end
+        if type(nextOptions) ~= "table" then nextOptions = { nextOptions } end
+        options = nextOptions
+        local stillAvailable = false
+        for _, option in ipairs(options) do
+            if option == handle.Value then
+                stillAvailable = true
+                break
+            end
+        end
+        if not stillAvailable then
+            handle.Value = options[1]
+            selector.Text = tostring(handle.Value or "Select")
+        end
+    end
+    handle.SetItems = handle.SetOptions
     connect(self.Window, selector.Activated, open)
     pressAnimation(self.Window, selector)
     self.Window:_registerFlag(data.Flag, handle)
@@ -3616,7 +3665,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.8
+AxelUI.Version = 6.9
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
