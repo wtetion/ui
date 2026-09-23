@@ -2519,7 +2519,8 @@ function AxelUI.SectionMethods:AddDropdown(data)
     end
     local function open()
         if popup then close(); return end
-        local popupHeight = math.min(#options * 28 + 8, 240)
+        local popupWidth = 132
+        local popupHeight = math.min(#options * 27 + 4, 210)
         popup = new("ScrollingFrame", {
             Active = true,
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -2529,13 +2530,13 @@ function AxelUI.SectionMethods:AddDropdown(data)
             ScrollBarImageColor3 = self.Window.Theme.Accent,
             ScrollBarThickness = 3,
             ScrollingDirection = Enum.ScrollingDirection.Y,
-            Size = UDim2.fromOffset(145, popupHeight),
+            Size = UDim2.fromOffset(popupWidth, popupHeight),
             ZIndex = 50,
         }, self.Window.Gui)
-        corner(popup, 5); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 4, 4, 4, 4)
-        placePopup(popup, selector, 145, popupHeight)
+        corner(popup, 5); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 3, 3, 3, 3)
+        placePopup(popup, selector, popupWidth, popupHeight)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
-        local list = new("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
+        local list = new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
         for _, option in ipairs(options) do
             local optionButton = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Surface2, BorderSizePixel = 0, Text = tostring(option), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.new(1, 0, 0, 25), ZIndex = 51 }, popup)
             corner(optionButton, 4)
@@ -2632,7 +2633,8 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
     end
     local function open()
         if popup then close(); return end
-        local popupHeight = math.min(#options * 28 + 8, 240)
+        local popupWidth = 160
+        local popupHeight = math.min(#options * 27 + 4, 210)
         popup = new("ScrollingFrame", {
             Active = true,
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -2642,13 +2644,13 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
             ScrollBarImageColor3 = self.Window.Theme.Accent,
             ScrollBarThickness = 3,
             ScrollingDirection = Enum.ScrollingDirection.Y,
-            Size = UDim2.fromOffset(175, popupHeight),
+            Size = UDim2.fromOffset(popupWidth, popupHeight),
             ZIndex = 60,
         }, self.Window.Gui)
-        corner(popup, 7); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 4, 4, 4, 4)
-        placePopup(popup, selector, 175, popupHeight)
+        corner(popup, 7); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 3, 3, 3, 3)
+        placePopup(popup, selector, popupWidth, popupHeight)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
-        new("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
+        new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
         for _, option in ipairs(options) do
             local value = tostring(option)
             local optionButton = new("TextButton", {
