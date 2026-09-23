@@ -684,7 +684,7 @@ local function keyName(value)
     return text:gsub("^Enum%.[^.]+%.", "")
 end
 
-local function placePopup(popup, anchor, width, height)
+local function placePopup(popup, anchor, width, height, preferBelow)
     if not popup or not anchor then return end
     local viewport = Vector2.new(1280, 720)
     pcall(function()
@@ -694,6 +694,13 @@ local function placePopup(popup, anchor, width, height)
     local anchorSize = anchor.AbsoluteSize
     local x = math.clamp(anchorPosition.X, 8, math.max(8, viewport.X - width - 8))
     local below = anchorPosition.Y + anchorSize.Y + 4
+    local availableBelow = viewport.Y - below - 8
+    if preferBelow and availableBelow >= 30 then
+        local fittedHeight = math.min(height, availableBelow)
+        popup.Size = UDim2.fromOffset(width, fittedHeight)
+        popup.Position = UDim2.fromOffset(x, below)
+        return
+    end
     local y = below + height <= viewport.Y - 8 and below or anchorPosition.Y - height - 4
     y = math.clamp(y, 8, math.max(8, viewport.Y - height - 8))
     popup.Position = UDim2.fromOffset(x, y)
@@ -2534,7 +2541,7 @@ function AxelUI.SectionMethods:AddDropdown(data)
             ZIndex = 50,
         }, self.Window.Gui)
         corner(popup, 5); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 3, 3, 3, 3)
-        placePopup(popup, selector, popupWidth, popupHeight)
+        placePopup(popup, selector, popupWidth, popupHeight, true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
         local list = new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
         for _, option in ipairs(options) do
@@ -2648,7 +2655,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
             ZIndex = 60,
         }, self.Window.Gui)
         corner(popup, 7); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 3, 3, 3, 3)
-        placePopup(popup, selector, popupWidth, popupHeight)
+        placePopup(popup, selector, popupWidth, popupHeight, true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
         new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
         for _, option in ipairs(options) do
