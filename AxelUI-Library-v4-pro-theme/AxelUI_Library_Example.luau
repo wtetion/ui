@@ -14,7 +14,7 @@ local function hasMethods(owner, names)
 end
 
 local function supportsShowcase(library)
-    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.8 then return false end
+    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.9 then return false end
     return hasMethods(library, {
         "CreateWindow", "AddTab", "Notify", "SetStatus", "SetGlass", "SetTheme",
         "SetFont", "SetBackground", "SaveConfig", "LoadConfig", "SetOpen", "Toggle",
@@ -70,7 +70,7 @@ local function loadAxelUI()
         local compiledOk, library, compileError = compileAndRun(source)
         if compiledOk and supportsShowcase(library) then return library end
         if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.8 image retry fix or full showcase API. Upload the bundled v6.8 library to that path.")
+            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.9 tab layout/filter fixes or full showcase API. Use the bundled v6.9 library or upload it to that path.")
         else
             warn("[AxelUI] GitHub source could not be loaded: " .. tostring(compileError or library))
         end
@@ -85,7 +85,7 @@ local function loadAxelUI()
             local compiledOk, library, compileError = compileAndRun(localSource)
             if compiledOk and supportsShowcase(library) then return library end
             if compiledOk and type(library) == "table" then
-                warn("[AxelUI] Local file is an older AxelUI version and does not support the full dashboard example.")
+                warn("[AxelUI] Local file is older than AxelUI v6.9 and does not support the full dashboard example.")
             else
                 warn("[AxelUI] Local library could not be loaded: " .. tostring(compileError or library))
             end
@@ -97,7 +97,7 @@ end
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
 if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v6.8 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
+    warn("[AxelUI] No compatible library found. Use the bundled v6.9 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
     return
 end
 
@@ -135,7 +135,7 @@ local Window = AxelUI.CreateWindow({
     Background = nil,
     BackgroundTransparency = 0.94,
     LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 6.8  •  Preparing your workspace",
+    LoadingSubtitle = "AxelUI 6.9  •  Preparing your workspace",
 })
 
 -- Home follows the reference composition: hero, pill tabs, then two columns of cards.
@@ -182,28 +182,28 @@ safeElement(Home, "AddHero", {
     Callback = function() Window:Notify("Axel Hub", "Your dashboard is ready.", "info") end,
 })
 
-safeElement(Home, "AddPill", { Name = "Overview", Active = true })
-safeElement(Home, "AddPill", { Name = "Player", Callback = function() Window:Notify("Overview", "Player tools are below.", "info") end })
-safeElement(Home, "AddPill", { Name = "World", Callback = function() Window:Notify("Overview", "World settings are below.", "info") end })
-safeElement(Home, "AddPill", { Name = "Visuals", Callback = function() Window:Notify("Overview", "Visual controls are below.", "info") end })
-safeElement(Home, "AddPill", { Name = "Utilities", Callback = function() Window:Notify("Overview", "Utility controls are below.", "info") end })
-safeElement(Home, "AddPill", { Name = "Configs", Callback = function() Window:Notify("Overview", "Configuration is below.", "info") end })
+safeElement(Home, "AddPill", { Name = "Overview", Filter = "Overview", Active = true })
+safeElement(Home, "AddPill", { Name = "Player", Filter = "Player" })
+safeElement(Home, "AddPill", { Name = "World", Filter = "World" })
+safeElement(Home, "AddPill", { Name = "Visuals", Filter = "Visuals" })
+safeElement(Home, "AddPill", { Name = "Utilities", Filter = "Utilities" })
+safeElement(Home, "AddPill", { Name = "Configs", Filter = "Configs" })
 
-local PlayerTools = safeSection(Home, { Name = "Player Tools", Description = "Fine tune your movement and abilities.", Side = "Left" })
+local PlayerTools = safeSection(Home, { Name = "Player Tools", Description = "Fine tune your movement and abilities.", Side = "Left", Pill = "Player" })
 PlayerTools:AddToggle({ Name = "Enable Movement Mods", Description = "Unlock advanced movement options.", Icon = "running", Default = true })
 PlayerTools:AddSlider({ Name = "Walk Speed", Icon = "speed", Min = 1, Max = 50, Default = 16, Flag = "walk_speed" })
 PlayerTools:AddSlider({ Name = "Jump Power", Icon = "arrows", Min = 1, Max = 100, Default = 50, Flag = "jump_power" })
 PlayerTools:AddToggle({ Name = "Infinite Jump", Description = "Keep going higher.", Icon = "move", Default = false })
 PlayerTools:AddToggle({ Name = "No Fall Damage", Description = "Land without limits.", Icon = "shield", Default = true })
 
-local WorldSettings = safeSection(Home, { Name = "World Settings", Description = "Adjust how you see and interact with the world.", Side = "Right" })
+local WorldSettings = safeSection(Home, { Name = "World Settings", Description = "Adjust how you see and interact with the world.", Side = "Right", Pill = "World" })
 WorldSettings:AddToggle({ Name = "Full Bright", Description = "Light up dark areas.", Icon = "star", Default = true })
 WorldSettings:AddToggle({ Name = "Remove Fog", Description = "See further, play clearer.", Icon = "eyeoff", Default = false })
 WorldSettings:AddDropdown({ Name = "Time of Day", Description = "Choose a world lighting preset.", Icon = "clock", Options = { "Day", "Sunset", "Night" }, Default = "Day" })
 WorldSettings:AddSlider({ Name = "Field of View", Icon = "eye", Min = 40, Max = 120, Default = 70, Suffix = "°" })
 WorldSettings:AddToggle({ Name = "Show Hitboxes", Description = "Visualize important objects.", Icon = "grid", Default = false })
 
-local Config = safeSection(Home, { Name = "Configuration", Description = "Save and load your favorite setups.", Side = "Left" })
+local Config = safeSection(Home, { Name = "Configuration", Description = "Save and load your favorite setups.", Side = "Left", Pill = "Configs" })
 Config:AddDropdown({ Name = "Preset", Icon = "folder", Options = { "Default", "Farm", "Combat" }, Default = "Default" })
 safeElement(Config, "AddActionBar", { Actions = {
     { Name = "Save", Primary = true, Callback = function()
@@ -217,12 +217,16 @@ safeElement(Config, "AddActionBar", { Actions = {
     { Name = "...", Callback = function() Window:Notify("Configuration", "More configuration actions are available through the library API.", "info") end },
 } })
 
-local Quick = safeSection(Home, { Name = "Quick Actions", Description = "Common features, one click away.", Side = "Right" })
+local Quick = safeSection(Home, { Name = "Quick Actions", Description = "Common features, one click away.", Side = "Right", Pill = "Utilities" })
 safeElement(Quick, "AddActionBar", { Actions = {
     { Name = "Rejoin", Callback = function() Window:Notify("Quick Action", "Rejoin requested.", "info") end },
     { Name = "Reset Character", Callback = function() Window:Notify("Quick Action", "Character reset requested.", "info") end },
     { Name = "Server Hop", Callback = function() Window:Notify("Quick Action", "Server hop requested.", "info") end },
 } })
+
+local VisualPreview = safeSection(Home, { Name = "Visual Controls", Description = "Keep the visual options you use most close at hand.", Side = "Left", Pill = "Visuals" })
+VisualPreview:AddToggle({ Name = "Show Hitboxes", Description = "Visualize important objects.", Icon = "grid", Default = false })
+VisualPreview:AddColorPicker({ Name = "Highlight color", Description = "Choose a highlight color.", Icon = "palette", Default = Color3.fromRGB(255, 193, 7) })
 
 -- Sidebar pages keep the library useful beyond the visual showcase.
 local Player = Window:AddTab({ Name = "Player", Description = "Movement and automation", Icon = "player", Badge = "LIVE" })
