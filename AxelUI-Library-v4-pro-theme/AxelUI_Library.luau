@@ -986,6 +986,17 @@ function AxelUI:SelectTab(tab)
     if tab.Status then
         self:SetStatus(tab.Status.Text, tab.Status.Color)
     end
+    -- Keep dashboard navigation in sync with the regular sidebar. Pills are
+    -- optional; tabs without a matching TargetTab continue to work normally.
+    for _, dashboard in ipairs(self.Tabs) do
+        local linkedPill
+        for _, pill in ipairs(dashboard.Pills or {}) do
+            if pill.TargetTab == tab then linkedPill = pill; break end
+        end
+        if linkedPill and dashboard.ActivePill ~= linkedPill then
+            dashboard:SelectPill(linkedPill, true)
+        end
+    end
     if self.GlowStroke then
         tween(self.GlowStroke, { Transparency = 0.34 }, 0.14)
         task.delay(0.18, function()
@@ -1830,9 +1841,9 @@ function AxelUI.TabMethods:AddHero(data)
     return { Instance = hero, Banner = banner, Image = picture, Fallback = fallback, FallbackIcon = fallbackIcon, Title = title, Content = content, WelcomeTitle = welcomeTitle, Button = action }
 end
 
--- Lightweight dashboard pills. Unlike AddSubTab, these are presentation tabs:
--- they keep one dashboard body intact, which is ideal for Home-style layouts
--- with a hero banner followed by two columns of cards.
+-- Lightweight dashboard pills. Unlike AddSubTab, these keep one dashboard
+-- body intact. A pill may filter dashboard sections and/or route to a sidebar
+-- tab through TargetTab, which also keeps selection synchronized both ways.
 function AxelUI.TabMethods:LayoutPills()
     if not self.PillBar or not self.PageBody then return end
     local mobile = self.Window.IsMobile
@@ -1874,6 +1885,9 @@ function AxelUI.TabMethods:SelectPill(pill, silent)
         elseif section.Card then
             section.Card.Visible = true
         end
+    end
+    if not silent and pill.TargetTab and self.Window.ActiveTab ~= pill.TargetTab then
+        self.Window:SelectTab(pill.TargetTab)
     end
     if not silent and type(pill.Callback) == "function" then
         task.spawn(function() pcall(pill.Callback, pill) end)
@@ -1931,6 +1945,7 @@ function AxelUI.TabMethods:AddPill(data)
         GoldGradient = goldGradient,
         Name = name,
         Filter = data.Filter or data.Category or name,
+        TargetTab = data.TargetTab or data.Tab,
         Callback = data.Callback or data.callback,
         Active = false,
     }
@@ -1950,7 +1965,7 @@ function AxelUI.TabMethods:AddPill(data)
     end)
     addButtonGlass(self.Window, button, 0)
     pressAnimation(self.Window, button)
-    if #self.Pills == 1 or data.Active then self:SelectPill(pill) end
+    if #self.Pills == 1 or data.Active or pill.TargetTab == self.Window.ActiveTab then self:SelectPill(pill) end
     self:LayoutPills()
     return pill
 end
@@ -3665,7 +3680,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.9
+AxelUI.Version = 6.91
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
