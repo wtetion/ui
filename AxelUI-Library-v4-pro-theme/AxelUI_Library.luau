@@ -909,13 +909,16 @@ function AxelUI:_makeRow(parent, data, height)
         textOffset = 27
     end
     local rightReserved = tonumber(data.RightReserved) or 145
-    local title = textLabel(inner, data.Name or "Element", 13, data.Primary and self.Theme.Background or self.Theme.Text, true)
+    local rowTitleSize = self.IsMobile and 12 or 13
+    local title = textLabel(inner, data.Name or "Element", rowTitleSize, data.Primary and self.Theme.Background or self.Theme.Text, true)
+    title.TextTruncate = Enum.TextTruncate.AtEnd
     title.Size = UDim2.new(1, -rightReserved - textOffset, 0, data.Description and 17 or 26)
     title.Position = UDim2.fromOffset(textOffset, data.Description and 0 or 0)
     local descriptionLabel
     if data.Description then
         descriptionLabel = textLabel(inner, data.Description, 10, data.Primary and self.Theme.Background or self.Theme.SubText, false)
-        descriptionLabel.TextWrapped = true
+        descriptionLabel.TextWrapped = false
+        descriptionLabel.TextTruncate = Enum.TextTruncate.AtEnd
         descriptionLabel.Size = UDim2.new(1, -rightReserved - textOffset, 0, 16)
         descriptionLabel.Position = UDim2.fromOffset(textOffset, 17)
     end
@@ -1105,6 +1108,8 @@ function AxelUI:SetOpen(visible)
                 self.Window.GroupTransparency = 0
                 self.Scale.Scale = 1
                 if self.RestoreButton then
+                    self.RestoreButton.Position = UDim2.new(0.5, -22, 0.5, -22)
+                    self.RestoreButton.Size = UDim2.fromOffset(44, 44)
                     self.RestoreButton.Visible = true
                     self.RestoreButton.BackgroundTransparency = 0.08
                     local restoreStroke = self.RestoreButton:FindFirstChildOfClass("UIStroke")
@@ -2977,6 +2982,7 @@ function AxelUI.SectionMethods:AddStatus(data)
     status.Size = UDim2.new(0, 180, 0, 24)
     status.Position = UDim2.new(1, -180, 0, 0)
     status.TextXAlignment = Enum.TextXAlignment.Right
+    status.TextTruncate = Enum.TextTruncate.AtEnd
     status.ZIndex = 8
     local handle = { Instance = status, Text = tostring(data.Text or data.Status or "Ready"), Color = data.Color or self.Window.Theme.Success }
     function handle:Set(value, color)
@@ -3326,19 +3332,30 @@ function AxelUI.new(options)
     local function headerControl(kind, offset, callback)
         local button = new("TextButton", {
             AutoButtonColor = false,
-            BackgroundColor3 = self.Theme.Element,
-            BackgroundTransparency = 0.18,
+            BackgroundColor3 = self.Theme.Background,
+            BackgroundTransparency = 0.08,
             BorderSizePixel = 0,
             Text = "",
             Size = UDim2.fromOffset(28, 28),
             Position = UDim2.new(1, offset, 0, 15),
+            ZIndex = 10,
         }, header)
         corner(button, 7)
-        local buttonIcon = icon(button, kind, 12, self.Theme.SubText)
+        local buttonStroke = stroke(button, self.Theme.Border, 0.16, 1)
+        local buttonIcon = icon(button, kind, 12, self.Theme.Text)
         buttonIcon.AnchorPoint = Vector2.new(0.5, 0.5)
         buttonIcon.Position = UDim2.fromScale(0.5, 0.5)
-        addButtonGlass(self, button, 0.18)
+        buttonIcon.ZIndex = 11
+        addButtonGlass(self, button, 0.08)
         pressAnimation(self, button)
+        connect(self, button.MouseEnter, function()
+            tween(button, { BackgroundColor3 = self.Theme.Element }, 0.12)
+            tween(buttonStroke, { Color = self.Theme.Text, Transparency = 0.04 }, 0.12)
+        end)
+        connect(self, button.MouseLeave, function()
+            tween(button, { BackgroundColor3 = self.Theme.Background }, 0.16)
+            tween(buttonStroke, { Color = self.Theme.Border, Transparency = 0.16 }, 0.16)
+        end)
         connect(self, button.MouseButton1Click, callback)
         return button
     end
@@ -3493,60 +3510,33 @@ function AxelUI.new(options)
 
     self.TouchButton = new("TextButton", {
         AutoButtonColor = false,
-        BackgroundColor3 = self.Theme.Element,
+        BackgroundColor3 = self.Theme.Background,
         BackgroundTransparency = 0.02,
         BorderSizePixel = 0,
         Text = "",
-        Size = UDim2.fromOffset(188, 48),
-        Position = UDim2.new(1, -62, 1, -62),
+        Size = UDim2.fromOffset(44, 44),
+        Position = UDim2.new(0.5, -22, 0.5, -22),
         Visible = false,
         ZIndex = 250,
     }, self.Gui)
-    corner(self.TouchButton, 16)
-    stroke(self.TouchButton, self.Theme.Accent, 0.12, 1.25)
+    corner(self.TouchButton, 22)
+    stroke(self.TouchButton, self.Theme.Text, 0.18, 1.2)
     self.TouchButton.Name = "AxelRestoreButton"
     self.RestoreScale = new("UIScale", { Scale = 1 }, self.TouchButton)
-    local touchStroke = self.TouchButton:FindFirstChildOfClass("UIStroke")
-    if touchStroke then touchStroke.Thickness = 1.5; touchStroke.Transparency = 0.08 end
-    local avatarPlate = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(32, 32), ZIndex = 251 }, self.TouchButton)
-    corner(avatarPlate, 10)
-    local restoreAvatar = new("ImageLabel", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), Image = "", ScaleType = Enum.ScaleType.Crop, Visible = false, ZIndex = 252 }, avatarPlate)
-    corner(restoreAvatar, 10)
-    local touchIcon = icon(avatarPlate, "star", 19, self.Theme.Accent2)
-    touchIcon.AnchorPoint = Vector2.new(0.5, 0.5); touchIcon.Position = UDim2.fromScale(0.5, 0.5); touchIcon.ZIndex = 253
-    if self.ProfileAvatar then
-        pcall(function() restoreAvatar.Image = self.ProfileAvatar.Image end)
-        watchImage(self.ProfileAvatar, function()
-            local imageOk, image = pcall(function() return self.ProfileAvatar.Image end)
-            if imageOk and image ~= "" then
-                restoreAvatar.Image = image
-                restoreAvatar.Visible = true
-                touchIcon.Visible = false
-            end
-        end, function()
-            restoreAvatar.Visible = false
-            touchIcon.Visible = true
-        end, 5, self._profileAvatarRetries)
-    end
-    self.RestoreAvatar = restoreAvatar
-    local launcherTitle = textLabel(self.TouchButton, "Axel Hub", 11, self.Theme.Text, true)
-    launcherTitle.Position = UDim2.fromOffset(48, 7); launcherTitle.Size = UDim2.new(1, -58, 0, 16); launcherTitle.ZIndex = 252
-    local statusDot = new("Frame", { BackgroundColor3 = self.Theme.Success, BorderSizePixel = 0, Position = UDim2.fromOffset(49, 29), Size = UDim2.fromOffset(6, 6), ZIndex = 252 }, self.TouchButton)
-    corner(statusDot, 3)
-    self.RestoreStatusDot = statusDot
-    local launcherStatus = textLabel(self.TouchButton, "Online", 9, self.Theme.Success, false)
-    launcherStatus.Position = UDim2.fromOffset(59, 24); launcherStatus.Size = UDim2.new(0, 41, 0, 16); launcherStatus.ZIndex = 252; launcherStatus.TextTruncate = Enum.TextTruncate.AtEnd
-    self.RestoreStatusText = launcherStatus
-    local launcherFps = textLabel(self.TouchButton, "-- FPS", 9, self.Theme.Accent2, true)
-    launcherFps.Position = UDim2.fromOffset(102, 24); launcherFps.Size = UDim2.fromOffset(43, 16); launcherFps.ZIndex = 252; launcherFps.TextXAlignment = Enum.TextXAlignment.Right
-    self.RestoreFpsText = launcherFps
-    local launcherPing = textLabel(self.TouchButton, "-- ms", 9, self.Theme.SubText, false)
-    launcherPing.Position = UDim2.new(1, -39, 0, 24); launcherPing.Size = UDim2.fromOffset(33, 16); launcherPing.ZIndex = 252; launcherPing.TextXAlignment = Enum.TextXAlignment.Right
-    self.RestorePingText = launcherPing
+    local restoreIcon = icon(self.TouchButton, "eye", 20, self.Theme.Text)
+    restoreIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+    restoreIcon.Position = UDim2.fromScale(0.5, 0.5)
+    restoreIcon.ZIndex = 252
+    self.RestoreIcon = restoreIcon
+    self.RestoreAvatar = nil
+    self.RestoreStatusDot = nil
+    self.RestoreStatusText = nil
+    self.RestoreFpsText = nil
+    self.RestorePingText = nil
     if typeof(options.RestoreButtonPosition) == "UDim2" then
         self.TouchButton.Position = options.RestoreButtonPosition
     elseif self.StartMinimized then
-        self.TouchButton.Position = UDim2.new(0.5, -94, 0.5, -24)
+        self.TouchButton.Position = UDim2.new(0.5, -22, 0.5, -22)
     end
     self.RestoreButton = self.TouchButton
     addButtonGlass(self, self.TouchButton, 0.02)
@@ -3560,7 +3550,6 @@ function AxelUI.new(options)
         if self._restoreDragged then return end
         self:SetOpen(true)
     end)
-
     connect(self, search:GetPropertyChangedSignal("Text"), function()
         if self._dropdownClose then pcall(self._dropdownClose) end
         self:_refreshSearch(search.Text)
@@ -3700,7 +3689,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.92
+AxelUI.Version = 6.93
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
