@@ -1108,8 +1108,6 @@ function AxelUI:SetOpen(visible)
                 self.Window.GroupTransparency = 0
                 self.Scale.Scale = 1
                 if self.RestoreButton then
-                    self.RestoreButton.Position = UDim2.new(0.5, -22, 0.5, -22)
-                    self.RestoreButton.Size = UDim2.fromOffset(44, 44)
                     self.RestoreButton.Visible = true
                     self.RestoreButton.BackgroundTransparency = 0.08
                     local restoreStroke = self.RestoreButton:FindFirstChildOfClass("UIStroke")
@@ -3007,6 +3005,186 @@ function AxelUI.SectionMethods:AddStatus(data)
     return handle
 end
 
+-- Profile card for session dashboards. It keeps the avatar, account name and
+-- account metadata together, while allowing the caller to refresh the fields.
+function AxelUI.SectionMethods:AddProfileCard(data)
+    data = data or {}
+    local window = self.Window
+    local card = new("Frame", {
+        BackgroundColor3 = window.Theme.Background,
+        BorderSizePixel = 0,
+        LayoutOrder = data.LayoutOrder or 0,
+        Size = UDim2.new(1, 0, 0, 72),
+    }, self.Body)
+    corner(card, 8); stroke(card, window.Theme.Border, 0.22, 1)
+
+    local avatarHolder = new("Frame", {
+        BackgroundColor3 = window.Theme.Element,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 10, 0.5, -25),
+        Size = UDim2.fromOffset(50, 50),
+    }, card)
+    corner(avatarHolder, 25); stroke(avatarHolder, data.AvatarBorderColor or window.Theme.Accent2, 0.18, 1)
+    local avatar = new("ImageLabel", {
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Image = "",
+        ScaleType = Enum.ScaleType.Crop,
+        Size = UDim2.fromScale(1, 1),
+        Visible = false,
+        ZIndex = 5,
+    }, avatarHolder)
+    corner(avatar, 25)
+    local avatarFallback = icon(avatarHolder, data.Icon or "user", 21, window.Theme.SubText)
+    avatarFallback.AnchorPoint = Vector2.new(0.5, 0.5)
+    avatarFallback.Position = UDim2.fromScale(0.5, 0.5)
+    avatarFallback.ZIndex = 6
+
+    local nameLabel = textLabel(card, "Player", 12, window.Theme.Text, true)
+    nameLabel.Position = UDim2.fromOffset(72, 7)
+    nameLabel.Size = UDim2.new(1, -82, 0, 17)
+    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    local usernameLabel = textLabel(card, "@player", 9, window.Theme.SubText, false)
+    usernameLabel.Position = UDim2.fromOffset(72, 25)
+    usernameLabel.Size = UDim2.new(1, -82, 0, 14)
+    usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    local accountLabel = textLabel(card, "Account Age: -- days", 9, window.Theme.Accent2, true)
+    accountLabel.Position = UDim2.fromOffset(72, 43)
+    accountLabel.Size = UDim2.new(1, -82, 0, 14)
+    accountLabel.TextTruncate = Enum.TextTruncate.AtEnd
+
+    local handle = { Instance = card, Avatar = avatar, Name = nameLabel, Username = usernameLabel, Account = accountLabel }
+    local avatarIdentity
+    local function updateAvatar(values)
+        local userId = tonumber(values.AvatarUserId or values.UserId or values.AccountId)
+        local requestedImage = values.AvatarImage or values.Image
+        local identity = tostring(requestedImage or userId or "")
+        if identity == avatarIdentity then return end
+        avatarIdentity = identity
+        local source = imageSource(requestedImage, window.AssetFolder)
+        local retries = {}
+        if not source and userId then
+            source = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", userId)
+            table.insert(retries, string.format("rbxthumb://type=Avatar&id=%d&w=150&h=150", userId))
+        end
+        if source then
+            avatar.Image = source
+            watchImage(avatar, function()
+                avatar.Visible = true
+                avatarFallback.Visible = false
+            end, function()
+                avatar.Visible = false
+                avatarFallback.Visible = true
+            end, 5, retries)
+        else
+            avatar.Image = ""
+            avatar.Visible = false
+            avatarFallback.Visible = true
+        end
+    end
+    function handle:Set(values)
+        values = type(values) == "table" and values or { DisplayName = values }
+        local displayName = values.DisplayName or values.Name or "Player"
+        local username = tostring(values.Username or values.UserName or values.Name or "player")
+        if username:sub(1, 1) ~= "@" then username = "@" .. username end
+        local userId = values.UserId or values.AccountId
+        if userId ~= nil then username ..= " · ID: " .. tostring(userId) end
+        local age = values.AccountAge or values.Age
+        local ageText = age == nil and "Account Age: --" or "Account Age: " .. tostring(age) .. (type(age) == "number" and " days" or "")
+        nameLabel.Text = tostring(displayName)
+        usernameLabel.Text = username
+        accountLabel.Text = tostring(values.AccountText or ageText)
+        accountLabel.TextColor3 = values.AccountColor or window.Theme.Accent2
+        updateAvatar(values)
+        self.DisplayName = tostring(displayName)
+        self.UserId = userId and tostring(userId) or ""
+        self.AccountAge = age
+    end
+    function handle:Get()
+        return { DisplayName = self.DisplayName, UserId = self.UserId, AccountAge = self.AccountAge }
+    end
+    handle:Set(data)
+    window:_registerSearch(card, tostring(data.DisplayName or data.Name or "") .. " " .. tostring(data.Username or data.UserName or "") .. " " .. tostring(data.UserId or ""))
+    table.insert(self.Controls, handle)
+    return handle
+end
+
+-- Compact 2-column status tiles for dashboard telemetry such as FPS, ping,
+-- uptime and player counts. Each returned metric has the same Set/Get shape
+-- as AddStatus, and can be fetched by Key or Name.
+function AxelUI.SectionMethods:AddMetricGrid(data)
+    data = data or {}
+    local window = self.Window
+    local items = data.Items or data.Metrics or {}
+    if type(items) ~= "table" then items = {} end
+    local columns = math.max(1, math.floor(tonumber(data.Columns) or 2))
+    local gap = math.max(0, tonumber(data.Gap) or 8)
+    local cellHeight = math.max(42, tonumber(data.CellHeight) or 50)
+    local itemCount = #items
+    local rowCount = math.max(1, math.ceil(itemCount / columns))
+    local gridHeight = itemCount > 0 and (rowCount * cellHeight + math.max(0, rowCount - 1) * gap) or 0
+    local grid = new("Frame", {
+        BackgroundTransparency = 1,
+        LayoutOrder = data.LayoutOrder or 0,
+        Size = UDim2.new(1, 0, 0, gridHeight),
+    }, self.Body)
+    new("UIGridLayout", {
+        CellPadding = UDim2.fromOffset(gap, gap),
+        CellSize = UDim2.new(1 / columns, -gap * (columns - 1) / columns, 0, cellHeight),
+        FillDirection = Enum.FillDirection.Horizontal,
+        FillDirectionMaxCells = columns,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, grid)
+
+    local handle = { Instance = grid, Metrics = {} }
+    for index, item in ipairs(items) do
+        item = type(item) == "table" and item or { Name = tostring(item), Value = "--" }
+        local metricName = tostring(item.Name or item.Title or ("Metric " .. tostring(index)))
+        local metricColor = item.Color or window.Theme.Accent2
+        local tile = new("Frame", {
+            BackgroundColor3 = window.Theme.Background,
+            BorderSizePixel = 0,
+            LayoutOrder = item.LayoutOrder or index,
+        }, grid)
+        corner(tile, 7); stroke(tile, window.Theme.Border, 0.22, 1)
+        local metricIcon = icon(tile, item.Icon or "activity", 13, item.IconColor or metricColor)
+        metricIcon.Position = UDim2.fromOffset(8, 6)
+        metricIcon.ZIndex = 6
+        local metricTitle = textLabel(tile, metricName, 9, window.Theme.SubText, false)
+        metricTitle.Position = UDim2.fromOffset(26, 5)
+        metricTitle.Size = UDim2.new(1, -32, 0, 15)
+        metricTitle.TextTruncate = Enum.TextTruncate.AtEnd
+        local metricValue = textLabel(tile, tostring(item.Value or item.Text or "--"), 13, metricColor, true)
+        metricValue.Position = UDim2.fromOffset(8, 24)
+        metricValue.Size = UDim2.new(1, -16, 0, 19)
+        metricValue.TextTruncate = Enum.TextTruncate.AtEnd
+        local metric = { Instance = metricValue, Tile = tile, Title = metricTitle, Icon = metricIcon, Text = metricValue.Text, Color = metricColor }
+        function metric:Set(value, color)
+            self.Text = tostring(value or "--")
+            self.Color = color or self.Color
+            metricValue.Text = self.Text
+            metricValue.TextColor3 = self.Color
+            if item.IconColor == nil then metricIcon.ImageColor3 = self.Color end
+        end
+        function metric:Get() return self.Text end
+        local key = tostring(item.Key or metricName)
+        handle.Metrics[key] = metric
+        handle.Metrics[metricName] = metric
+        table.insert(self.Controls, metric)
+        window:_registerSearch(tile, metricName .. " " .. tostring(item.Description or ""))
+    end
+    function handle:Get(key)
+        return self.Metrics[tostring(key or "")]
+    end
+    function handle:Set(key, value, color)
+        local metric = self:Get(key)
+        if metric then metric:Set(value, color) end
+        return metric
+    end
+    table.insert(self.Controls, handle)
+    return handle
+end
+
 function AxelUI.SectionMethods:AddDivider()
     return new("Frame", { BackgroundColor3 = self.Window.Theme.Border, BackgroundTransparency = 0.2, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 1) }, self.Body)
 end
@@ -3029,6 +3207,8 @@ AxelUI.SectionMethods.Input = AxelUI.SectionMethods.AddInput
 AxelUI.SectionMethods.Bind = AxelUI.SectionMethods.AddKeybind
 AxelUI.SectionMethods.Keybind = AxelUI.SectionMethods.AddKeybind
 AxelUI.SectionMethods.Status = AxelUI.SectionMethods.AddStatus
+AxelUI.SectionMethods.ProfileCard = AxelUI.SectionMethods.AddProfileCard
+AxelUI.SectionMethods.MetricGrid = AxelUI.SectionMethods.AddMetricGrid
 AxelUI.SectionMethods.Separator = AxelUI.SectionMethods.AddDivider
 AxelUI.SectionMethods.CreateToggle = AxelUI.SectionMethods.AddToggle
 AxelUI.SectionMethods.CreateSlider = AxelUI.SectionMethods.AddSlider
@@ -3040,6 +3220,8 @@ AxelUI.SectionMethods.CreateKeybind = AxelUI.SectionMethods.AddKeybind
 AxelUI.SectionMethods.CreateColorPicker = AxelUI.SectionMethods.AddColorPicker
 AxelUI.SectionMethods.CreateTextbox = AxelUI.SectionMethods.AddInput
 AxelUI.SectionMethods.CreateStatus = AxelUI.SectionMethods.AddStatus
+AxelUI.SectionMethods.CreateProfileCard = AxelUI.SectionMethods.AddProfileCard
+AxelUI.SectionMethods.CreateMetricGrid = AxelUI.SectionMethods.AddMetricGrid
 AxelUI.SectionMethods.CreateDivider = AxelUI.SectionMethods.AddDivider
 AxelUI.SectionMethods.CreateImage = AxelUI.SectionMethods.AddImage
 AxelUI.SectionMethods.CreateBanner = AxelUI.SectionMethods.AddBanner
@@ -3524,33 +3706,60 @@ function AxelUI.new(options)
 
     self.TouchButton = new("TextButton", {
         AutoButtonColor = false,
-        BackgroundColor3 = self.Theme.Background,
+        BackgroundColor3 = self.Theme.Element,
         BackgroundTransparency = 0.02,
         BorderSizePixel = 0,
         Text = "",
-        Size = UDim2.fromOffset(44, 44),
-        Position = UDim2.new(0.5, -22, 0.5, -22),
+        Size = UDim2.fromOffset(188, 48),
+        Position = UDim2.new(1, -206, 1, -62),
         Visible = false,
         ZIndex = 250,
     }, self.Gui)
-    corner(self.TouchButton, 22)
-    stroke(self.TouchButton, self.Theme.Text, 0.18, 1.2)
+    corner(self.TouchButton, 16)
+    stroke(self.TouchButton, self.Theme.Accent, 0.12, 1.25)
     self.TouchButton.Name = "AxelRestoreButton"
     self.RestoreScale = new("UIScale", { Scale = 1 }, self.TouchButton)
-    local restoreIcon = icon(self.TouchButton, "eye", 20, self.Theme.Text)
-    restoreIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-    restoreIcon.Position = UDim2.fromScale(0.5, 0.5)
-    restoreIcon.ZIndex = 252
-    self.RestoreIcon = restoreIcon
-    self.RestoreAvatar = nil
-    self.RestoreStatusDot = nil
-    self.RestoreStatusText = nil
-    self.RestoreFpsText = nil
-    self.RestorePingText = nil
+    local touchStroke = self.TouchButton:FindFirstChildOfClass("UIStroke")
+    if touchStroke then touchStroke.Thickness = 1.5; touchStroke.Transparency = 0.08 end
+    local avatarPlate = new("Frame", { BackgroundColor3 = self.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(32, 32), ZIndex = 251 }, self.TouchButton)
+    corner(avatarPlate, 10)
+    local restoreAvatar = new("ImageLabel", { BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), Image = "", ScaleType = Enum.ScaleType.Crop, Visible = false, ZIndex = 252 }, avatarPlate)
+    corner(restoreAvatar, 10)
+    local touchIcon = icon(avatarPlate, "star", 19, self.Theme.Accent2)
+    touchIcon.AnchorPoint = Vector2.new(0.5, 0.5); touchIcon.Position = UDim2.fromScale(0.5, 0.5); touchIcon.ZIndex = 253
+    if self.ProfileAvatar then
+        pcall(function() restoreAvatar.Image = self.ProfileAvatar.Image end)
+        watchImage(self.ProfileAvatar, function()
+            local imageOk, image = pcall(function() return self.ProfileAvatar.Image end)
+            if imageOk and image ~= "" then
+                restoreAvatar.Image = image
+                restoreAvatar.Visible = true
+                touchIcon.Visible = false
+            end
+        end, function()
+            restoreAvatar.Visible = false
+            touchIcon.Visible = true
+        end, 5, self._profileAvatarRetries)
+    end
+    self.RestoreAvatar = restoreAvatar
+    local launcherTitle = textLabel(self.TouchButton, "Axel Hub", 11, self.Theme.Text, true)
+    launcherTitle.Position = UDim2.fromOffset(48, 7); launcherTitle.Size = UDim2.new(1, -58, 0, 16); launcherTitle.ZIndex = 252
+    local statusDot = new("Frame", { BackgroundColor3 = self.Theme.Success, BorderSizePixel = 0, Position = UDim2.fromOffset(49, 29), Size = UDim2.fromOffset(6, 6), ZIndex = 252 }, self.TouchButton)
+    corner(statusDot, 3)
+    self.RestoreStatusDot = statusDot
+    local launcherStatus = textLabel(self.TouchButton, "Online", 9, self.Theme.Success, false)
+    launcherStatus.Position = UDim2.fromOffset(59, 24); launcherStatus.Size = UDim2.new(0, 41, 0, 16); launcherStatus.ZIndex = 252; launcherStatus.TextTruncate = Enum.TextTruncate.AtEnd
+    self.RestoreStatusText = launcherStatus
+    local launcherFps = textLabel(self.TouchButton, "-- FPS", 9, self.Theme.Accent2, true)
+    launcherFps.Position = UDim2.fromOffset(102, 24); launcherFps.Size = UDim2.fromOffset(43, 16); launcherFps.ZIndex = 252; launcherFps.TextXAlignment = Enum.TextXAlignment.Right
+    self.RestoreFpsText = launcherFps
+    local launcherPing = textLabel(self.TouchButton, "-- ms", 9, self.Theme.SubText, false)
+    launcherPing.Position = UDim2.new(1, -39, 0, 24); launcherPing.Size = UDim2.fromOffset(33, 16); launcherPing.ZIndex = 252; launcherPing.TextXAlignment = Enum.TextXAlignment.Right
+    self.RestorePingText = launcherPing
     if typeof(options.RestoreButtonPosition) == "UDim2" then
         self.TouchButton.Position = options.RestoreButtonPosition
     elseif self.StartMinimized then
-        self.TouchButton.Position = UDim2.new(0.5, -22, 0.5, -22)
+        self.TouchButton.Position = UDim2.new(0.5, -94, 0.5, -24)
     end
     self.RestoreButton = self.TouchButton
     addButtonGlass(self, self.TouchButton, 0.02)
@@ -3703,7 +3912,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.94
+AxelUI.Version = 6.95
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
