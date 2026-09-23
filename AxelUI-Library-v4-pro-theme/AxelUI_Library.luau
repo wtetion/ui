@@ -1974,15 +1974,18 @@ function AxelUI.TabMethods:SelectSubTab(subtab)
     if not subtab then return end
     for _, other in ipairs(self.SubTabs or {}) do
         local active = other == subtab
+        other.Active = active
         if other.PageBody then other.PageBody.Visible = active end
         if other.Button then
             tween(other.Button, { BackgroundColor3 = active and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
-            setTextColor(other.Title, active and self.Window.Theme.Background or self.Window.Theme.SubText)
+            other.Button.BackgroundTransparency = active and 0.02 or 0
+            setGoldGradientActive(other.GoldGradient, active)
+            if other.Stroke then tween(other.Stroke, { Transparency = active and 0.02 or 0.38, Color = active and self.Window.Theme.Accent2 or self.Window.Theme.Border, Thickness = active and 1.15 or 0.75 }, 0.16) end
+            setTextColor(other.Title, active and self.Window.Theme.Background or self.Window.Theme.Accent2)
         end
     end
     self.ActiveSubTab = subtab
 end
-
 function AxelUI.TabMethods:AddSubTab(data)
     data = type(data) == "table" and data or { Name = data }
     local subtab = {
@@ -2010,22 +2013,27 @@ function AxelUI.TabMethods:AddSubTab(data)
         new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 7), SortOrder = Enum.SortOrder.LayoutOrder }, self.SubTabBar)
     end
 
-    local buttonWidth = math.max(92, math.min(190, #subtab.Name * 7 + 30))
+        local buttonWidth = math.max(92, math.min(190, #subtab.Name * 7 + 30))
     local button = new("TextButton", {
         AutoButtonColor = false,
         BackgroundColor3 = self.Window.Theme.Element,
         BorderSizePixel = 0,
+        LayoutOrder = #self.SubTabs + 1,
         Text = "",
-        Size = UDim2.fromOffset(buttonWidth, 28),
+        Size = UDim2.fromOffset(buttonWidth, 30),
+        ZIndex = 4,
     }, self.SubTabBar)
-    corner(button, 14)
-    local title = textLabel(button, subtab.Name, 10, self.Window.Theme.SubText, true)
+    corner(button, 15)
+    local subtabStroke = stroke(button, self.Window.Theme.Border, 0.38, 0.75)
+    local goldGradient = addGoldGradient(self.Window, button)
+    local title = textLabel(button, subtab.Name, 10, self.Window.Theme.Accent2, true)
     title.Size = UDim2.new(1, -18, 1, 0)
     title.Position = UDim2.fromOffset(9, 0)
     title.TextXAlignment = Enum.TextXAlignment.Center
+    title.ZIndex = 5
     subtab.Button, subtab.Title = button, title
-
-    local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout
+    subtab.Stroke, subtab.GoldGradient = subtabStroke, goldGradient
+local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout
     if #self.SubTabs == 0 then
         pageBody, columns, leftColumn, rightColumn, columnLayout = self.PageBody, self.Columns, self.LeftBody, self.RightBody, self.ColumnLayout
         leftLayout, rightLayout = self.Layout, self.RightBody and self.RightBody:FindFirstChildOfClass("UIListLayout")
@@ -2046,9 +2054,21 @@ function AxelUI.TabMethods:AddSubTab(data)
     subtab._nextSide = "Left"
     table.insert(self.SubTabs, subtab)
 
-    connect(self.Window, button.MouseButton1Click, function() self:SelectSubTab(subtab) end)
-    pressAnimation(self.Window, button)
-    if #self.SubTabs == 1 then
+        connect(self.Window, button.MouseButton1Click, function() self:SelectSubTab(subtab) end)
+    connect(self.Window, button.MouseEnter, function()
+        if not subtab.Active then
+            tween(subtabStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.05 }, 0.13)
+            tween(button, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.13)
+        end
+    end)
+    connect(self.Window, button.MouseLeave, function()
+        if not subtab.Active then
+            tween(subtabStroke, { Transparency = 0.38, Color = self.Window.Theme.Border, Thickness = 0.75 }, 0.16)
+            tween(button, { BackgroundColor3 = self.Window.Theme.Element }, 0.16)
+        end
+    end)
+    addButtonGlass(self.Window, button, 0)
+    pressAnimation(self.Window, button)if #self.SubTabs == 1 then
         self:SelectSubTab(subtab)
     else
         self:SelectSubTab(self.ActiveSubTab or self.SubTabs[1])
@@ -3680,7 +3700,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.91
+AxelUI.Version = 6.92
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
