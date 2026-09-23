@@ -934,7 +934,7 @@ function AxelUI:_makeRow(parent, data, height)
         tween(hoverGlass, { BackgroundTransparency = 1 }, 0.18)
     end)
     self:_registerSearch(row, (data.Name or "") .. " " .. (data.Description or ""), title)
-    return row, inner, title
+    return row, inner, title, descriptionLabel
 end
 
 function AxelUI:_setActiveTab(tab, active)
@@ -2471,7 +2471,12 @@ function AxelUI.SectionMethods:AddToggle(data)
         tween(track, { BackgroundColor3 = self.Value and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
         tween(trackStroke, { Color = self.Value and self.Window.Theme.Accent2 or self.Window.Theme.Border, Transparency = self.Value and 0.04 or 0.28, Thickness = self.Value and 1.5 or 1 }, 0.16)
         if not silent and type(data.Callback or data.callback) == "function" then
-            task.spawn(function() pcall(data.Callback or data.callback, self.Value) end)
+            local callback = data.Callback or data.callback
+            local callbackValue = self.Value
+            task.defer(function()
+                if self.Window and self.Window._destroyed then return end
+                pcall(callback, callbackValue)
+            end)
         end
     end
     function handle:Get() return self.Value end
@@ -2994,8 +2999,15 @@ function AxelUI.SectionMethods:AddStatus(data)
     data = data or {}
     data.Icon = data.Icon or "check"
     local copyable = data.Copyable == true or data.Copy == true
-    data.RightReserved = math.max(tonumber(data.RightReserved) or 180, copyable and 206 or 180)
-    local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 34)
+    local inlineValue = data.ValueInDescription == true
+    local initialText = tostring(data.Text or data.Status or "Ready")
+    if inlineValue then
+        data.Description = data.Description or (tostring(data.ValuePrefix or "") .. initialText)
+        data.RightReserved = tonumber(data.RightReserved) or (copyable and 36 or 8)
+    else
+        data.RightReserved = math.max(tonumber(data.RightReserved) or 180, copyable and 206 or 180)
+    end
+    local row, inner, _, descriptionLabel = self.Window:_makeRow(self.Body, data, data.Height or 34)
     local status = textLabel(inner, data.Text or data.Status or "Ready", 11, data.Color or self.Window.Theme.Success, true)
     local statusWidth = copyable and 176 or 180
     status.Size = UDim2.new(0, statusWidth, 0, 24)
@@ -3003,6 +3015,10 @@ function AxelUI.SectionMethods:AddStatus(data)
     status.TextXAlignment = Enum.TextXAlignment.Right
     status.TextTruncate = Enum.TextTruncate.AtEnd
     status.ZIndex = 8
+    status.Visible = not inlineValue
+    if inlineValue and descriptionLabel and data.ValueDescriptionColor then
+        descriptionLabel.TextColor3 = data.ValueDescriptionColor
+    end
     local copyIcon
     if copyable then
         copyIcon = icon(inner, "copy", 13, data.CopyColor or self.Window.Theme.Accent2)
@@ -3019,13 +3035,18 @@ function AxelUI.SectionMethods:AddStatus(data)
         Copyable = copyable,
         CopyValue = data.CopyValue ~= nil and tostring(data.CopyValue) or tostring(data.Text or data.Status or "Ready"),
         CopyIcon = copyIcon,
+        DescriptionInstance = descriptionLabel,
     }
-    function handle:Set(value, color, copyValue)
+    function handle:Set(value, color, copyValue, description)
         self.Text = tostring(value or "Ready")
         self.Color = color or self.Color
         self.CopyValue = copyValue ~= nil and tostring(copyValue) or self.Text
         status.Text = self.Text
         status.TextColor3 = self.Color
+        if inlineValue and descriptionLabel then
+            descriptionLabel.Text = tostring(description ~= nil and description or (tostring(data.ValuePrefix or "") .. self.Text))
+            descriptionLabel.TextColor3 = data.ValueDescriptionColor or self.Color
+        end
     end
     function handle:Get() return self.Text end
     function handle:Copy()
@@ -3970,7 +3991,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.97
+AxelUI.Version = 6.98
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
