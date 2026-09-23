@@ -1108,6 +1108,7 @@ function AxelUI:SetOpen(visible)
                 self.Window.GroupTransparency = 0
                 self.Scale.Scale = 1
                 if self.RestoreButton then
+                    self.RestoreButton.Position = UDim2.new(0.5, -94, 0.5, -24)
                     self.RestoreButton.Visible = true
                     self.RestoreButton.BackgroundTransparency = 0.08
                     local restoreStroke = self.RestoreButton:FindFirstChildOfClass("UIStroke")
@@ -2035,18 +2036,22 @@ function AxelUI.TabMethods:AddSubTab(data)
         BackgroundColor3 = self.Window.Theme.Element,
         BorderSizePixel = 0,
         LayoutOrder = #self.SubTabs + 1,
-        Text = "",
+        Text = subtab.Name,
+        TextColor3 = self.Window.Theme.Accent2,
+        TextSize = 10,
+        FontFace = fontFace(nil, true),
+        TextXAlignment = Enum.TextXAlignment.Center,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextWrapped = false,
+        TextStrokeColor3 = self.Window.Theme.Background,
+        TextStrokeTransparency = 0.72,
         Size = UDim2.fromOffset(buttonWidth, 30),
         ZIndex = 4,
     }, self.SubTabBar)
     corner(button, 15)
     local subtabStroke = stroke(button, self.Window.Theme.Border, 0.38, 0.75)
     local goldGradient = addGoldGradient(self.Window, button)
-    local title = textLabel(button, subtab.Name, 10, self.Window.Theme.Accent2, true)
-    title.Size = UDim2.new(1, -18, 1, 0)
-    title.Position = UDim2.fromOffset(9, 0)
-    title.TextXAlignment = Enum.TextXAlignment.Center
-    title.ZIndex = 5
+    local title = button
     subtab.Button, subtab.Title = button, title
     subtab.Stroke, subtab.GoldGradient = subtabStroke, goldGradient
 local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout
@@ -2988,19 +2993,70 @@ end
 function AxelUI.SectionMethods:AddStatus(data)
     data = data or {}
     data.Icon = data.Icon or "check"
-    data.RightReserved = data.RightReserved or 180
+    local copyable = data.Copyable == true or data.Copy == true
+    data.RightReserved = math.max(tonumber(data.RightReserved) or 180, copyable and 206 or 180)
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 34)
     local status = textLabel(inner, data.Text or data.Status or "Ready", 11, data.Color or self.Window.Theme.Success, true)
-    status.Size = UDim2.new(0, 180, 0, 24)
-    status.Position = UDim2.new(1, -180, 0, 0)
+    local statusWidth = copyable and 176 or 180
+    status.Size = UDim2.new(0, statusWidth, 0, 24)
+    status.Position = UDim2.new(1, copyable and -206 or -180, 0, 0)
     status.TextXAlignment = Enum.TextXAlignment.Right
     status.TextTruncate = Enum.TextTruncate.AtEnd
     status.ZIndex = 8
-    local handle = { Instance = status, Text = tostring(data.Text or data.Status or "Ready"), Color = data.Color or self.Window.Theme.Success }
-    function handle:Set(value, color)
-        self.Text = tostring(value or "Ready"); self.Color = color or self.Color; status.Text = self.Text; status.TextColor3 = self.Color
+    local copyIcon
+    if copyable then
+        copyIcon = icon(inner, "copy", 13, data.CopyColor or self.Window.Theme.Accent2)
+        copyIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+        copyIcon.Position = UDim2.new(1, -9, 0.5, 0)
+        copyIcon.ZIndex = 9
+    end
+    local handle = {
+        Instance = status,
+        Row = row,
+        Window = self.Window,
+        Text = tostring(data.Text or data.Status or "Ready"),
+        Color = data.Color or self.Window.Theme.Success,
+        Copyable = copyable,
+        CopyValue = data.CopyValue ~= nil and tostring(data.CopyValue) or tostring(data.Text or data.Status or "Ready"),
+        CopyIcon = copyIcon,
+    }
+    function handle:Set(value, color, copyValue)
+        self.Text = tostring(value or "Ready")
+        self.Color = color or self.Color
+        self.CopyValue = copyValue ~= nil and tostring(copyValue) or self.Text
+        status.Text = self.Text
+        status.TextColor3 = self.Color
     end
     function handle:Get() return self.Text end
+    function handle:Copy()
+        if not self.Copyable then return false end
+        local value = tostring(self.CopyValue or self.Text or "")
+        if value == "" then
+            pcall(function() self.Window:Notify("Copy unavailable", "There is no value to copy.", "warning") end)
+            return false
+        end
+        local ok, result
+        if type(data.CopyCallback) == "function" then
+            ok, result = pcall(data.CopyCallback, value)
+            ok = ok and result ~= false
+        else
+            local copier = setclipboard or toclipboard
+            if type(copier) == "function" then
+                ok, result = pcall(copier, value)
+                ok = ok and result ~= false
+            else
+                ok = false
+            end
+        end
+        if ok then
+            pcall(function() self.Window:Notify(data.CopyTitle or "Copied", tostring(data.CopyLabel or data.Name or "Value") .. " copied to clipboard.", "success") end)
+        else
+            pcall(function() self.Window:Notify("Copy unavailable", "Clipboard access is unavailable.", "warning") end)
+        end
+        if type(data.Callback) == "function" then task.spawn(function() pcall(data.Callback, value, ok) end) end
+        return ok
+    end
+    if copyable then connect(self.Window, row.MouseButton1Click, function() handle:Copy() end) end
     table.insert(self.Controls, handle)
     return handle
 end
@@ -3021,6 +3077,7 @@ function AxelUI.SectionMethods:AddProfileCard(data)
     local avatarHolder = new("Frame", {
         BackgroundColor3 = window.Theme.Element,
         BorderSizePixel = 0,
+        ClipsDescendants = true,
         Position = UDim2.new(0, 10, 0.5, -25),
         Size = UDim2.fromOffset(50, 50),
     }, card)
@@ -3032,10 +3089,10 @@ function AxelUI.SectionMethods:AddProfileCard(data)
         ScaleType = Enum.ScaleType.Crop,
         Size = UDim2.fromScale(1, 1),
         Visible = false,
-        ZIndex = 5,
+        ZIndex = 7,
     }, avatarHolder)
     corner(avatar, 25)
-    local avatarFallback = icon(avatarHolder, data.Icon or "user", 21, window.Theme.SubText)
+    local avatarFallback = icon(avatarHolder, data.Icon or "user", 21, data.IconColor or window.Theme.Accent2)
     avatarFallback.AnchorPoint = Vector2.new(0.5, 0.5)
     avatarFallback.Position = UDim2.fromScale(0.5, 0.5)
     avatarFallback.ZIndex = 6
@@ -3063,15 +3120,16 @@ function AxelUI.SectionMethods:AddProfileCard(data)
         avatarIdentity = identity
         local source = imageSource(requestedImage, window.AssetFolder)
         local retries = {}
-        if not source and userId then
-            source = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", userId)
-            table.insert(retries, string.format("rbxthumb://type=Avatar&id=%d&w=150&h=150", userId))
+        if userId then
+            local headshot = string.format("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150", userId)
+            local avatarImage = string.format("rbxthumb://type=Avatar&id=%d&w=150&h=150", userId)
+            if not source then source = headshot elseif source ~= headshot then table.insert(retries, headshot) end
+            if source ~= avatarImage then table.insert(retries, avatarImage) end
         end
         if source then
             avatar.Image = source
             watchImage(avatar, function()
                 avatar.Visible = true
-                avatarFallback.Visible = false
             end, function()
                 avatar.Visible = false
                 avatarFallback.Visible = true
@@ -3164,7 +3222,7 @@ function AxelUI.SectionMethods:AddMetricGrid(data)
             self.Color = color or self.Color
             metricValue.Text = self.Text
             metricValue.TextColor3 = self.Color
-            if item.IconColor == nil then metricIcon.ImageColor3 = self.Color end
+            if item.IconColor == nil then setIconTint(metricIcon, self.Color) end
         end
         function metric:Get() return self.Text end
         local key = tostring(item.Key or metricName)
@@ -3912,7 +3970,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.95
+AxelUI.Version = 6.97
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
