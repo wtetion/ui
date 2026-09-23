@@ -1,10 +1,10 @@
--- AxelUI dashboard showcase
--- Entry point: run this file to build the dashboard. Running only the library
--- returns the API module; it does not add tabs or example controls.
--- The old example called loadstring(...) immediately, so a missing URL or a
--- non-executor environment produced: "attempt to call a nil value" on line 3.
--- The GitHub URL below is the primary source. The bundled library is used as a
--- fallback if that path still serves an older AxelUI version.
+-- AxelUI library example for the Axel Hub tab layout.
+-- This is a UI-only preview: controls demonstrate the library and do not run
+-- Roblox game automation. The feature names/pages mirror the legacy Luau UI.
+
+local LIBRARY_URL = "https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"
+local MIN_LIBRARY_VERSION = 6.92
+
 local function hasMethods(owner, names)
     if type(owner) ~= "table" then return false end
     for _, name in ipairs(names) do
@@ -13,105 +13,69 @@ local function hasMethods(owner, names)
     return true
 end
 
-local function supportsShowcase(library)
-    if type(library) ~= "table" or (tonumber(library.Version) or 0) < 6.9 then return false end
-    return hasMethods(library, {
-        "CreateWindow", "AddTab", "Notify", "SetStatus", "SetGlass", "SetTheme",
-        "SetFont", "SetBackground", "SaveConfig", "LoadConfig", "SetOpen", "Toggle",
-        "SetMaximized", "SetToggleKeybind", "ConfirmUnload", "Unload", "RegisterIcon",
-        "RegisterIcons",
-    })
-        and hasMethods(library.TabMethods, {
-            "AddHero", "AddPill", "AddSection", "AddSubTab", "SetBadge", "SetStatus",
-        })
-        and hasMethods(library.SectionMethods, {
-            "AddDescription", "AddText", "AddTextLabel", "AddLabel", "AddParagraph",
-            "AddBanner", "AddImage", "AddButton", "AddActionBar", "AddToggle", "AddSlider",
-            "AddDropdown", "AddMultiDropdown", "AddColorPicker", "AddInput", "AddKeybind",
-            "AddStatus", "AddDivider", "CreateToggle", "CreateSlider", "CreateDropdown",
-            "CreateMultiDropdown", "CreateButton", "CreateInput", "CreateKeybind",
-            "CreateColorPicker", "CreateImage", "CreateBanner", "CreateActionBar",
-            "CreateText", "CreateParagraph", "CreateLabel", "CreateDivider",
-        })
+local function isCompatible(library)
+    return type(library) == "table"
+        and (tonumber(library.Version) or 0) >= MIN_LIBRARY_VERSION
+        and type(library.CreateWindow) == "function"
+        and type(library.AddTab) == "function"
+        and hasMethods(library.TabMethods, { "AddHero", "AddPill", "AddSubTab", "AddSection" })
+        and hasMethods(library.SectionMethods, { "AddStatus", "AddToggle", "AddSlider", "AddDropdown", "AddButton" })
 end
 
-local function loadAxelUI()
+local function getEnvironment()
     local environment = _G
     pcall(function()
         if type(getgenv) == "function" then environment = getgenv() end
     end)
-    if supportsShowcase(environment.AxelUI) then return environment.AxelUI end
-    if type(environment.AxelUI) == "table" then
-        warn("[AxelUI] Preloaded library is older than the dashboard example; updating from the configured GitHub URL.")
-    end
+    return environment
+end
+
+local function compileLibrary(source)
+    local compiler = loadstring or load
+    if type(compiler) ~= "function" then return nil, "loadstring/load is unavailable" end
+    local ok, chunk = pcall(compiler, source)
+    if not ok or type(chunk) ~= "function" then return nil, tostring(chunk) end
+    local ran, library = pcall(chunk)
+    if not ran or not isCompatible(library) then return nil, tostring(library or "incompatible library") end
+    return library
+end
+
+local function loadAxelUI()
+    local environment = getEnvironment()
+    if isCompatible(environment.AxelUI) then return environment.AxelUI end
 
     local compiler = loadstring or load
-    if type(compiler) ~= "function" then
-        warn("[AxelUI] loadstring is unavailable. Run this from an executor or preload AxelUI_Library.luau first.")
-        return nil
-    end
-
-    local function compileAndRun(source)
-        local compileOk, chunk, compileError = pcall(compiler, source)
-        if not compileOk then return false, nil, "compiler threw: " .. tostring(chunk) end
-        if type(chunk) ~= "function" then
-            return false, nil, tostring(compileError or "compiler returned " .. type(chunk) .. " instead of a function")
+    if type(compiler) == "function" then
+        local ok, source = pcall(function() return game:HttpGet(LIBRARY_URL) end)
+        if ok and type(source) == "string" and #source > 0 then
+            local library = compileLibrary(source)
+            if library then environment.AxelUI = library; return library end
         end
-        local runOk, result = pcall(chunk)
-        if not runOk then return false, nil, "library runtime error: " .. tostring(result) end
-        return true, result, nil
     end
 
-    -- User supplied raw GitHub URL. This is the same source format accepted by
-    -- loadstring(game:HttpGet(url))(), so use it as the primary source.
-    local hostedUrl = "https://raw.githubusercontent.com/wtetion/ui/refs/heads/main/AxelUI-Library-v4-pro-theme/AxelUI_Library.luau"
-    local httpOk, source = pcall(function() return game:HttpGet(hostedUrl) end)
-    if httpOk and type(source) == "string" and #source > 0 then
-        local compiledOk, library, compileError = compileAndRun(source)
-        if compiledOk and supportsShowcase(library) then return library end
-        if compiledOk and type(library) == "table" then
-            warn("[AxelUI] GitHub URL returned AxelUI v" .. tostring(library.Version or "unknown") .. ", which lacks the v6.9 tab layout/filter fixes or full showcase API. Use the bundled v6.9 library or upload it to that path.")
-        else
-            warn("[AxelUI] GitHub source could not be loaded: " .. tostring(compileError or library))
-        end
-    else
-        warn("[AxelUI] GitHub download failed: " .. tostring(source))
-    end
-
-    -- Local and preloaded fallbacks keep the example usable when HTTP is off.
     if type(readfile) == "function" then
-        local fileOk, localSource = pcall(readfile, "AxelUI_Library.luau")
-        if fileOk and type(localSource) == "string" and #localSource > 0 then
-            local compiledOk, library, compileError = compileAndRun(localSource)
-            if compiledOk and supportsShowcase(library) then return library end
-            if compiledOk and type(library) == "table" then
-                warn("[AxelUI] Local file is older than AxelUI v6.9 and does not support the full dashboard example.")
-            else
-                warn("[AxelUI] Local library could not be loaded: " .. tostring(compileError or library))
-            end
+        local ok, source = pcall(readfile, "AxelUI_Library.luau")
+        if ok and type(source) == "string" and #source > 0 then
+            local library = compileLibrary(source)
+            if library then environment.AxelUI = library; return library end
         end
     end
+    warn("[AxelUI Example] Use the bundled AxelUI_Library.luau v6.92 or update the configured raw GitHub file.")
     return nil
 end
 
 local AxelUI = loadAxelUI()
 if not AxelUI then return end
-if not supportsShowcase(AxelUI) then
-    warn("[AxelUI] No compatible library found. Use the bundled v6.9 AxelUI_Library.luau, or upload it to the configured raw GitHub path.")
-    return
-end
 
 local Window = AxelUI.CreateWindow({
     Name = "Axel Hub",
     Subtitle = "Play Further",
-    Footer = "v1.0.0\nReady when you are",
-    GuiName = "AxelHubUI",
+    Footer = "AxelUI v6.92\nLibrary example",
+    GuiName = "AxelUIExample",
     ToggleKeybind = "RightControl",
-    -- Start on the centered Axel star launcher; clicking/tapping opens the UI.
-    StartMinimized = true,
-    RestoreButtonPosition = UDim2.new(0.5, -94, 0.5, -24),
-    -- Set this when your executor stores AxelLogo.png in a subfolder.
-    -- AssetFolder = "AxelUI",
+    Size = UDim2.fromOffset(926, 616),
+    StartMinimized = false,
+    Logo = "star",
     Theme = {
         Accent = Color3.fromRGB(255, 193, 7),
         Accent2 = Color3.fromRGB(255, 224, 115),
@@ -120,42 +84,27 @@ local Window = AxelUI.CreateWindow({
         Surface = Color3.fromRGB(17, 17, 19),
         Surface2 = Color3.fromRGB(24, 24, 27),
         Element = Color3.fromRGB(30, 29, 28),
-        -- Reference cards use a quiet graphite border; gold is reserved for
-        -- the active state, focus glow and primary actions.
         Border = Color3.fromRGB(58, 59, 67),
     },
-    -- Built-in logo renders from vector UI primitives; no font glyph or remote
-    -- icon pack is needed. Pass an rbxassetid://... here for your own image.
-    Logo = "star",
-    -- Only the shell and empty page backdrop are translucent. Sidebar, cards
-    -- and controls are explicitly solid for the reference look.
-    Glass = { Enabled = true, Transparency = 0.24, AnimatedBorder = true, AnimationDuration = 3.2 },
-    TabAnimation = true,
-    TabAnimationDuration = 0.2,
-    Background = nil,
-    BackgroundTransparency = 0.94,
-    LoadingText = "Axel Hub",
-    LoadingSubtitle = "AxelUI 6.9  •  Preparing your workspace",
+    Glass = { Enabled = true, Transparency = 0.24, AnimatedBorder = true },
 })
 
--- Home follows the reference composition: hero, pill tabs, then two columns of cards.
-local Home = Window:AddTab({ Name = "Home", Description = "Live status and quick actions", Icon = "home" })
 local function safeElement(owner, methodName, data)
     local method = owner and owner[methodName]
     if type(method) ~= "function" then
-        warn("[AxelUI] Missing method: " .. tostring(methodName) .. " (library is older than the example)")
+        warn("[AxelUI Example] Missing method: " .. tostring(methodName))
         return nil
     end
     local ok, result = pcall(method, owner, data)
     if not ok then
-        warn("[AxelUI] " .. tostring(methodName) .. " failed: " .. tostring(result))
+        warn("[AxelUI Example] " .. tostring(methodName) .. " failed: " .. tostring(result))
         return nil
     end
     return result
 end
 
-local function safeSection(tab, data)
-    local actual = safeElement(tab, "AddSection", data)
+local function safeGroup(owner, createMethod, data)
+    local actual = safeElement(owner, createMethod, data)
     return setmetatable({}, {
         __index = function(_, key)
             local value = actual and actual[key]
@@ -167,107 +116,128 @@ local function safeSection(tab, data)
     })
 end
 
+local Home = Window:AddTab({ Name = "Home", Description = "Overview & live status", Icon = "home" })
+local Eggs = Window:AddTab({ Name = "Eggs", Description = "Steal, hatch & plant", Icon = "eggs" })
+local Base = Window:AddTab({ Name = "Base", Description = "Homestead & training", Icon = "wrench" })
+local Combat = Window:AddTab({ Name = "Combat", Description = "Bat, slaps & defense", Icon = "combat" })
+local PlayerTab = Window:AddTab({ Name = "Player", Description = "Movement & teleports", Icon = "player" })
+local Settings = Window:AddTab({ Name = "Settings", Description = "Configs & unloader", Icon = "settings" })
+local Server = Window:AddTab({ Name = "Server", Description = "Server hop", Icon = "server" })
+local Webhook = Window:AddTab({ Name = "Webhook", Description = "Discord notifications", Icon = "webhook" })
+
 safeElement(Home, "AddHero", {
-    Image = "rbxassetid://86949082023913", -- replace with a wide banner asset for the reference sunset scene
-    -- Fit preserves the full image when users import a square PNG/logo.
+    Image = "rbxassetid://86949082023913",
     ScaleType = Enum.ScaleType.Fit,
     WelcomeLabel = "Welcome to",
     WelcomeTitle = "Axel Hub",
     WelcomeContent = "Powerful tools. A smoother way to play.",
-    BannerTitle = "Customize your experience",
-    Title = "Customize your experience",
-    Content = "Simple. Powerful. Yours. Build your own control center with clean, readable controls.",
-    Button = "Get Started",
+    BannerTitle = "Join Axel Hub on Discord",
+    Title = "Join Axel Hub on Discord",
+    Content = "Copy the invite to join the Axel Hub community.",
+    Button = "Copy Discord",
     Height = 104,
-    Callback = function() Window:Notify("Axel Hub", "Your dashboard is ready.", "info") end,
+    Callback = function()
+        local invite = "https://discord.gg/axelhub"
+        local copier = setclipboard or toclipboard
+        if type(copier) == "function" then
+            local ok = pcall(copier, invite)
+            if ok then
+                Window:Notify("Discord", "Invite copied to clipboard.", "success")
+                return
+            end
+        end
+        Window:Notify("Discord invite", invite, "info")
+    end,
 })
+Home:AddPill({ Name = "Overview", TargetTab = Home, Active = true })
+Home:AddPill({ Name = "Eggs", TargetTab = Eggs })
+Home:AddPill({ Name = "Base", TargetTab = Base })
+Home:AddPill({ Name = "Combat", TargetTab = Combat })
+Home:AddPill({ Name = "Player", TargetTab = PlayerTab })
+Home:AddPill({ Name = "Settings", TargetTab = Settings })
+Home:AddPill({ Name = "Server", TargetTab = Server })
+Home:AddPill({ Name = "Webhook", TargetTab = Webhook })
 
-safeElement(Home, "AddPill", { Name = "Overview", Filter = "Overview", Active = true })
-safeElement(Home, "AddPill", { Name = "Player", Filter = "Player" })
-safeElement(Home, "AddPill", { Name = "World", Filter = "World" })
-safeElement(Home, "AddPill", { Name = "Visuals", Filter = "Visuals" })
-safeElement(Home, "AddPill", { Name = "Utilities", Filter = "Utilities" })
-safeElement(Home, "AddPill", { Name = "Configs", Filter = "Configs" })
+local Session = safeGroup(Home, "AddSection", {
+    Name = "Session Status", Description = "Current player and experience.", Side = "Left", Pill = "Overview",
+})
+local localPlayer = game:GetService("Players").LocalPlayer
+Session:AddStatus({ Name = "Player", Icon = "user", Text = localPlayer and (localPlayer.DisplayName or localPlayer.Name) or "Waiting", Color = Window.Theme.Success })
+Session:AddStatus({ Name = "Experience", Icon = "gamepad", Text = game.Name, Color = Window.Theme.Accent2 })
+Session:AddStatus({ Name = "Place ID", Icon = "map", Text = tostring(game.PlaceId), Color = Window.Theme.SubText })
+Session:AddStatus({ Name = "Server", Icon = "server", Text = string.sub(tostring(game.JobId or ""), 1, 8), Color = Window.Theme.SubText })
 
-local PlayerTools = safeSection(Home, { Name = "Player Tools", Description = "Fine tune your movement and abilities.", Side = "Left", Pill = "Player" })
-PlayerTools:AddToggle({ Name = "Enable Movement Mods", Description = "Unlock advanced movement options.", Icon = "running", Default = true })
-PlayerTools:AddSlider({ Name = "Walk Speed", Icon = "speed", Min = 1, Max = 50, Default = 16, Flag = "walk_speed" })
-PlayerTools:AddSlider({ Name = "Jump Power", Icon = "arrows", Min = 1, Max = 100, Default = 50, Flag = "jump_power" })
-PlayerTools:AddToggle({ Name = "Infinite Jump", Description = "Keep going higher.", Icon = "move", Default = false })
-PlayerTools:AddToggle({ Name = "No Fall Damage", Description = "Land without limits.", Icon = "shield", Default = true })
+local Runtime = safeGroup(Home, "AddSection", {
+    Name = "Hub Status", Description = "Status cards used by the live hub dashboard.", Side = "Right", Pill = "Overview",
+})
+Runtime:AddStatus({ Name = "AxelUI", Icon = "check", Text = "Online · v6.92", Color = Window.Theme.Success })
+Runtime:AddStatus({ Name = "Feature pages", Icon = "grid", Text = "7 linked", Color = Window.Theme.Accent2 })
+Runtime:AddParagraph({ Title = "Navigation", Content = "A Home pill and its matching sidebar tab open the same function page." })
 
-local WorldSettings = safeSection(Home, { Name = "World Settings", Description = "Adjust how you see and interact with the world.", Side = "Right", Pill = "World" })
-WorldSettings:AddToggle({ Name = "Full Bright", Description = "Light up dark areas.", Icon = "star", Default = true })
-WorldSettings:AddToggle({ Name = "Remove Fog", Description = "See further, play clearer.", Icon = "eyeoff", Default = false })
-WorldSettings:AddDropdown({ Name = "Time of Day", Description = "Choose a world lighting preset.", Icon = "clock", Options = { "Day", "Sunset", "Night" }, Default = "Day" })
-WorldSettings:AddSlider({ Name = "Field of View", Icon = "eye", Min = 40, Max = 120, Default = 70, Suffix = "°" })
-WorldSettings:AddToggle({ Name = "Show Hitboxes", Description = "Visualize important objects.", Icon = "grid", Default = false })
+local Steal = safeGroup(Eggs, "AddSubTab", "Auto Steal")
+Steal:AddToggle({ Name = "Auto Steal", Description = "Enable the egg collection routine.", Icon = "eggs", Default = false })
+Steal:AddDropdown({ Name = "Rarity filter", Icon = "star", Options = { "Any", "Rare", "Epic", "Legendary" }, Default = "Any" })
+Steal:AddSlider({ Name = "Scan delay", Icon = "timer", Min = 0.1, Max = 5, Default = 1, Suffix = "s" })
+local Hatch = safeGroup(Eggs, "AddSubTab", "Auto Hatch & Plant")
+Hatch:AddToggle({ Name = "Auto Hatch", Icon = "eggs", Default = false })
+Hatch:AddToggle({ Name = "Auto Place Egg", Icon = "home", Default = false })
+local EggESP = safeGroup(Eggs, "AddSubTab", "Egg Tracker ESP")
+EggESP:AddToggle({ Name = "Egg ESP", Icon = "eye", Default = false })
 
-local Config = safeSection(Home, { Name = "Configuration", Description = "Save and load your favorite setups.", Side = "Left", Pill = "Configs" })
-Config:AddDropdown({ Name = "Preset", Icon = "folder", Options = { "Default", "Farm", "Combat" }, Default = "Default" })
-safeElement(Config, "AddActionBar", { Actions = {
-    { Name = "Save", Primary = true, Callback = function()
-        local ok, err = Window:SaveConfig("axelhub-demo")
-        Window:Notify("Configuration", ok and "Configuration saved." or tostring(err), ok and "success" or "error")
-    end },
-    { Name = "Load", Callback = function()
-        local ok, err = Window:LoadConfig("axelhub-demo")
-        Window:Notify("Configuration", ok and "Configuration loaded." or tostring(err), ok and "success" or "error")
-    end },
-    { Name = "...", Callback = function() Window:Notify("Configuration", "More configuration actions are available through the library API.", "info") end },
-} })
+local Upgrades = safeGroup(Base, "AddSubTab", "Homestead & Treadmill")
+Upgrades:AddToggle({ Name = "Auto Treadmill", Icon = "activity", Default = false })
+Upgrades:AddDropdown({ Name = "Upgrade target", Icon = "chart", Options = { "Homestead", "Treadmill" }, Default = "Homestead" })
+local Pets = safeGroup(Base, "AddSubTab", "Pets & Satchel")
+Pets:AddButton({ Name = "Equip best pets", Icon = "favorite" })
+Pets:AddButton({ Name = "Open satchel", Icon = "backpack" })
+local Sales = safeGroup(Base, "AddSubTab", "Auto Sell")
+Sales:AddToggle({ Name = "Auto Sell Pets", Icon = "cart", Default = false })
+Sales:AddToggle({ Name = "Auto Sell Eggs", Icon = "eggs", Default = false })
+local BaseEvents = safeGroup(Base, "AddSubTab", "Events & Bosses")
+BaseEvents:AddToggle({ Name = "Auto Rift", Icon = "star", Default = false })
+local Rewards = safeGroup(Base, "AddSubTab", "Claim Rewards")
+Rewards:AddButton({ Name = "Claim ready rewards", Icon = "gift" })
 
-local Quick = safeSection(Home, { Name = "Quick Actions", Description = "Common features, one click away.", Side = "Right", Pill = "Utilities" })
-safeElement(Quick, "AddActionBar", { Actions = {
-    { Name = "Rejoin", Callback = function() Window:Notify("Quick Action", "Rejoin requested.", "info") end },
-    { Name = "Reset Character", Callback = function() Window:Notify("Quick Action", "Character reset requested.", "info") end },
-    { Name = "Server Hop", Callback = function() Window:Notify("Quick Action", "Server hop requested.", "info") end },
-} })
+local Aura = safeGroup(Combat, "AddSubTab", "Bat & Slap Aura")
+Aura:AddToggle({ Name = "Bat Aura", Icon = "combat", Default = false })
+Aura:AddSlider({ Name = "Aura range", Icon = "target", Min = 5, Max = 30, Default = 12, Suffix = " studs" })
+local Defense = safeGroup(Combat, "AddSubTab", "Defense & Guards")
+Defense:AddToggle({ Name = "Anti-Trap", Icon = "shield", Default = false })
+Defense:AddToggle({ Name = "Knockback protection", Icon = "shield", Default = false })
 
-local VisualPreview = safeSection(Home, { Name = "Visual Controls", Description = "Keep the visual options you use most close at hand.", Side = "Left", Pill = "Visuals" })
-VisualPreview:AddToggle({ Name = "Show Hitboxes", Description = "Visualize important objects.", Icon = "grid", Default = false })
-VisualPreview:AddColorPicker({ Name = "Highlight color", Description = "Choose a highlight color.", Icon = "palette", Default = Color3.fromRGB(255, 193, 7) })
+local Movement = safeGroup(PlayerTab, "AddSubTab", "Movement")
+Movement:AddToggle({ Name = "WalkSpeed", Icon = "speed", Default = false })
+Movement:AddSlider({ Name = "Walk speed", Icon = "running", Min = 16, Max = 100, Default = 24 })
+Movement:AddToggle({ Name = "JumpPower", Icon = "move", Default = false })
+Movement:AddSlider({ Name = "Jump power", Icon = "arrows", Min = 50, Max = 150, Default = 60 })
+Movement:AddToggle({ Name = "Fly", Icon = "move", Default = false })
+local Travel = safeGroup(PlayerTab, "AddSubTab", "Area Travel")
+Travel:AddDropdown({ Name = "Destination", Icon = "map", Options = { "Forest", "Lake", "Desert", "Jungle" }, Default = "Forest" })
+local PlotTravel = safeGroup(PlayerTab, "AddSubTab", "Plot Travel")
+PlotTravel:AddDropdown({ Name = "Plot", Icon = "home", Options = { "Plot 1", "Plot 2", "Plot 3" }, Default = "Plot 1" })
+local PlayerTravel = safeGroup(PlayerTab, "AddSubTab", "Player Travel")
+PlayerTravel:AddDropdown({ Name = "Player", Icon = "users", Options = { "Select player" }, Default = "Select player" })
+local Performance = safeGroup(PlayerTab, "AddSubTab", "Visuals & Performance")
+Performance:AddToggle({ Name = "Anti-AFK", Icon = "clock", Default = false })
 
--- Sidebar pages keep the library useful beyond the visual showcase.
-local Player = Window:AddTab({ Name = "Player", Description = "Movement and automation", Icon = "player", Badge = "LIVE" })
-local Travel = safeSection(Player, { Name = "Player Tools", Description = "Movement and travel controls.", Side = "Left" })
-Travel:AddToggle({ Name = "Auto travel", Description = "Run the selected travel method.", Icon = "teleport", Default = false, Flag = "auto_travel" })
-Travel:AddDropdown({ Name = "Travel method", Description = "Teleport, safe walk or guarded movement.", Icon = "move", Options = { "Teleport", "Safe Walk", "Anti Guard", "Fly Glide" }, Default = "Teleport", Flag = "travel_method" })
-Travel:AddSlider({ Name = "Check delay", Description = "How often the worker checks for a target.", Icon = "timer", Min = 0.1, Max = 10, Default = 1, Suffix = "s" })
-Travel:AddKeybind({ Name = "Toggle automation", Icon = "bolt", Default = "RightShift" })
-local PlayerStatus = safeSection(Player, { Name = "Runner status", Description = "Live state of the current workspace.", Side = "Right" })
-PlayerStatus:AddStatus({ Name = "Library state", Text = "Online", Color = Window.Theme.Success, Icon = "check" })
-PlayerStatus:AddStatus({ Name = "Current profile", Text = "Default", Color = Window.Theme.Accent2, Icon = "user" })
-PlayerStatus:AddParagraph({ Title = "Readable by design", Content = "Every control accepts a description, icon and flag. Cards resize from their real content so nothing overlaps or disappears." })
+local Config = safeGroup(Settings, "AddSubTab", "Configuration")
+Config:AddInput({ Name = "Config Name", Icon = "file", Placeholder = "stealanegg", Default = "stealanegg" })
+Config:AddButton({ Name = "Save Config", Icon = "save", Primary = true, Callback = function() Window:SaveConfig("stealanegg") end })
+Config:AddButton({ Name = "Load Config", Icon = "download", Callback = function() Window:LoadConfig("stealanegg") end })
+Config:AddKeybind({ Name = "Toggle UI Keybind", Icon = "bolt", Default = "RightControl" })
 
-local World = Window:AddTab({ Name = "World", Description = "Lighting and environment", Icon = "world" })
-local WorldCard = safeSection(World, { Name = "Environment", Description = "Tune the current world.", Side = "Left" })
-WorldCard:AddToggle({ Name = "Full Bright", Icon = "sun", Default = true })
-WorldCard:AddToggle({ Name = "Remove Fog", Icon = "eyeoff", Default = false })
-WorldCard:AddDropdown({ Name = "Time of Day", Icon = "clock", Options = { "Day", "Sunset", "Night" }, Default = "Day" })
+local ServerHop = safeGroup(Server, "AddSubTab", "Server Hop")
+ServerHop:AddToggle({ Name = "Enable Auto Server Hop", Icon = "server", Default = false })
+ServerHop:AddToggle({ Name = "Hop on No Matching Egg", Icon = "search", Default = false })
+ServerHop:AddSlider({ Name = "Max Hops", Icon = "refresh", Min = 1, Max = 100, Default = 20 })
 
-local Visuals = Window:AddTab({ Name = "Visuals", Description = "Clean visual controls", Icon = "eye" })
-local VisualCard = safeSection(Visuals, { Name = "Visuals", Description = "Optional visual helpers.", Side = "Left" })
-VisualCard:AddToggle({ Name = "Show Hitboxes", Description = "Visualize important objects.", Icon = "grid", Default = false })
-VisualCard:AddToggle({ Name = "Monochrome screen", Description = "Toggle the black and white display effect.", Icon = "contrast", Default = false })
-VisualCard:CreateMultiDropdown({ Name = "Visible overlays", Description = "Choose several visual layers at once.", Icon = "layers", Options = { "Boxes", "Names", "Distance", "Tracers" }, Default = { "Boxes", "Names" }, Flag = "visual_overlays" })
-VisualCard:CreateColorPicker({ Name = "Highlight color", Description = "Choose a UI accent for this visual group.", Icon = "palette", Default = Color3.fromRGB(255, 193, 7) })
-VisualCard:CreateInput({ Name = "Filter visuals", Description = "A searchable text field with a callback.", Icon = "search", Placeholder = "Type a filter...", Flag = "visual_filter" })
+local WebhookMain = safeGroup(Webhook, "AddSubTab", "Webhook")
+WebhookMain:AddInput({ Name = "Webhook URL", Icon = "webhook", Placeholder = "https://discord.com/api/webhooks/..." })
+WebhookMain:AddToggle({ Name = "Enable Webhook", Icon = "webhook", Default = false })
+local WebhookEvents = safeGroup(Webhook, "AddSubTab", "Notifications")
+WebhookEvents:AddToggle({ Name = "Notify on animal", Icon = "bell", Default = true })
+WebhookEvents:AddToggle({ Name = "Notify on rarity", Icon = "star", Default = true })
+WebhookEvents:AddToggle({ Name = "Notify on egg", Icon = "eggs", Default = true })
 
-local Utilities = Window:AddTab({ Name = "Utilities", Description = "Useful one-click tools", Icon = "utilities" })
-local UtilityCard = safeSection(Utilities, { Name = "Quick Actions", Description = "Common features, one click away.", Side = "Left" })
-UtilityCard:AddButton({ Name = "Copy Discord link", Description = "Copy the Axel Hub community invite.", Icon = "discord", Callback = function()
-    local copy = setclipboard or toclipboard
-    if copy then copy("https://discord.gg/axelhub") end
-end })
-UtilityCard:AddButton({ Name = "Unload UI", Description = "Ask before removing the interface and its listeners.", Icon = "power", Callback = function() Window:ConfirmUnload() end })
-UtilityCard:CreateToggle({ Name = "Glass outer shell", Description = "Only the outside shell changes; controls stay solid.", Icon = "layers", Default = Window.GlassEnabled, Callback = function(enabled) Window:SetGlass(enabled) end })
-
-local Configs = Window:AddTab({ Name = "Configs", Description = "Save and load setups", Icon = "configs" })
-local ConfigCard = safeSection(Configs, { Name = "Configuration", Description = "Keep your favorite setups ready.", Side = "Left" })
-ConfigCard:AddButton({ Name = "Save current configuration", Icon = "save", Callback = function() Window:SaveConfig("axelhub-demo") end })
-ConfigCard:AddButton({ Name = "Load saved configuration", Icon = "download", Callback = function() Window:LoadConfig("axelhub-demo") end })
-
-Window:AddTab({ Name = "Marketplace", Description = "More tools coming soon", Icon = "shop" })
-
+Window:SetStatus("Online", Window.Theme.Success)
 return Window
