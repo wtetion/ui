@@ -4409,7 +4409,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 7.9
+AxelUI.Version = 8.0
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
