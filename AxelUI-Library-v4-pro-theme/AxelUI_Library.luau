@@ -35,6 +35,15 @@ local ACTIVE_FONT
 local ACTIVE_ASSET_FOLDER
 local GOLD_GRADIENT_ANIMATIONS = setmetatable({}, { __mode = "k" })
 
+local function getSharedEnvironment()
+    local environment = _G
+    pcall(function()
+        if type(getgenv) == "function" then environment = getgenv() end
+    end)
+    if type(environment) ~= "table" then environment = _G end
+    return environment
+end
+
 local DEFAULT_THEME = {
     Background = Color3.fromRGB(12, 13, 17),
     Surface = Color3.fromRGB(17, 18, 23),
@@ -339,6 +348,7 @@ local ICON_ALIASES = {
     person = "user", player = "user", team = "user", group = "user", globe = "world", compass = "world", map = "world",
     visible = "eye", render = "eye", esp = "eye", eyeoff = "eye", hidden = "eye", wrench = "settings",
     sliders = "settings", utilities = "settings", gear = "settings", speed = "gauge", activity = "gauge",
+    wifi = "wifi",
     running = "move", arrows = "move", teleport = "move", aim = "target", crosshair = "target",
     favorite = "star", sparkle = "star", logo = "star", time = "clock", timer = "clock", chart = "gauge",
     download = "save", upload = "save", clipboard = "file", list = "file", inventory = "file",
@@ -360,7 +370,8 @@ local function canonicalIcon(value)
         or name == "gauge" or name == "clock" or name == "move" or name == "target" or name == "grid"
         or name == "file" or name == "cart" or name == "shield" or name == "save" or name == "bolt"
         or name == "check" or name == "close" or name == "plus" or name == "minus" or name == "search"
-        or name == "maximize" or name == "chevron" or name == "sun" or name == "resize" or name == "refresh" then
+        or name == "maximize" or name == "chevron" or name == "sun" or name == "resize" or name == "refresh"
+        or name == "wifi" then
         return name
     end
     return "star"
@@ -433,6 +444,10 @@ local function vectorIcon(parent, name, size, tint)
         dot(12, 12, 19, false); segment(3, 12, 21, 12, 1.4); segment(12, 3, 12, 21, 1.4)
         segment(8, 4, 7, 12, 1.2); segment(7, 12, 8, 20, 1.2)
         segment(16, 4, 17, 12, 1.2); segment(17, 12, 16, 20, 1.2)
+    elseif name == "wifi" then
+        segment(3, 8, 7, 5, 1.8); segment(7, 5, 12, 3.5, 1.8); segment(12, 3.5, 17, 5, 1.8); segment(17, 5, 21, 8, 1.8)
+        segment(7, 13, 9, 11, 1.8); segment(9, 11, 12, 10, 1.8); segment(12, 10, 15, 11, 1.8); segment(15, 11, 17, 13, 1.8)
+        dot(12, 19, 3, true)
     elseif name == "eye" then
         segment(2, 12, 7, 6, 1.8); segment(7, 6, 12, 4, 1.8); segment(12, 4, 17, 6, 1.8)
         segment(17, 6, 22, 12, 1.8); segment(22, 12, 17, 18, 1.8); segment(17, 18, 12, 20, 1.8)
@@ -526,16 +541,24 @@ end
 
 local function setIconTint(object, color, duration)
     if not object then return end
+    local instant = LOW_END_TOUCH_CLIENT or tonumber(duration) == 0
+    local function apply(target, property, value)
+        if instant then
+            pcall(function() target[property] = value end)
+        else
+            tween(target, { [property] = value }, duration or 0.18)
+        end
+    end
     if object:IsA("ImageLabel") or object:IsA("ImageButton") then
-        tween(object, { ImageColor3 = color }, duration or 0.18)
+        apply(object, "ImageColor3", color)
         local fallback = object.Parent and object.Parent:FindFirstChild("AxelVectorIcon")
         if fallback then setIconTint(fallback, color, duration) end
         return
     end
     if object:IsA("GuiObject") then
         for _, child in ipairs(object:GetDescendants()) do
-            if child:IsA("GuiObject") and child.Name ~= "AxelVectorIcon" then tween(child, { BackgroundColor3 = color }, duration or 0.18) end
-            if child:IsA("UIStroke") then tween(child, { Color = color }, duration or 0.18) end
+            if child:IsA("GuiObject") and child.Name ~= "AxelVectorIcon" then apply(child, "BackgroundColor3", color) end
+            if child:IsA("UIStroke") then apply(child, "Color", color) end
         end
     end
 end
@@ -706,6 +729,28 @@ local function placePopup(popup, anchor, width, height, preferBelow)
     local y = below + height <= viewport.Y - 8 and below or anchorPosition.Y - height - 4
     y = math.clamp(y, 8, math.max(8, viewport.Y - height - 8))
     popup.Position = UDim2.fromOffset(x, y)
+end
+
+local function animatePopupOpen(popup)
+    if not popup or not popup.Parent then return end
+    local targetSize = popup.Size
+    local outline = popup:FindFirstChildOfClass("UIStroke")
+    popup.Size = UDim2.fromOffset(targetSize.X.Offset, 0)
+    popup.BackgroundTransparency = 0.16
+    if outline then outline.Transparency = 0.62 end
+    tween(popup, { Size = targetSize, BackgroundTransparency = 0 }, 0.15, Enum.EasingStyle.Quint)
+    if outline then tween(outline, { Transparency = 0.08 }, 0.15, Enum.EasingStyle.Quint) end
+end
+
+local function animatePopupClose(popup)
+    if not popup or not popup.Parent then return end
+    local width = popup.Size.X.Offset
+    local outline = popup:FindFirstChildOfClass("UIStroke")
+    tween(popup, { Size = UDim2.fromOffset(width, 0), BackgroundTransparency = 1 }, 0.12, Enum.EasingStyle.Quad)
+    if outline then tween(outline, { Transparency = 1 }, 0.1, Enum.EasingStyle.Quad) end
+    task.delay(0.14, function()
+        if popup.Parent then popup:Destroy() end
+    end)
 end
 
 local function pressAnimation(self, button, scaleObject)
@@ -1609,16 +1654,26 @@ local function bindVerticalLayout(window, parent, layout, extra, onSize)
         preserveHeight(parent, height)
         if onSize then onSize(height) end
     end
+    local syncQueued = false
+    local function queueSync()
+        if syncQueued then return end
+        syncQueued = true
+        task.defer(function()
+            syncQueued = false
+            if window._destroyed then return end
+            sync()
+        end)
+    end
     local function watch(child)
         if not child or not child:IsA("GuiObject") then return end
-        connect(window, child:GetPropertyChangedSignal("Size"), function() task.defer(sync) end)
-        connect(window, child:GetPropertyChangedSignal("Visible"), function() task.defer(sync) end)
+        connect(window, child:GetPropertyChangedSignal("Size"), queueSync)
+        connect(window, child:GetPropertyChangedSignal("Visible"), queueSync)
     end
-    connect(window, layout:GetPropertyChangedSignal("AbsoluteContentSize"), sync)
-    connect(window, parent.ChildAdded, function(child) watch(child); task.defer(sync) end)
-    connect(window, parent.ChildRemoved, function() task.defer(sync) end)
+    connect(window, layout:GetPropertyChangedSignal("AbsoluteContentSize"), queueSync)
+    connect(window, parent.ChildAdded, function(child) watch(child); queueSync() end)
+    connect(window, parent.ChildRemoved, queueSync)
     for _, child in ipairs(parent:GetChildren()) do watch(child) end
-    task.defer(sync)
+    queueSync()
     return sync
 end
 
@@ -1670,14 +1725,24 @@ local function makePageColumns(window, page, topOffset)
         preserveHeight(columns, columnLayout.AbsoluteContentSize.Y)
         pageBody.CanvasSize = UDim2.new(0, 0, 0, columnLayout.AbsoluteContentSize.Y + 18)
     end
-    connect(window, leftLayout:GetPropertyChangedSignal("AbsoluteContentSize"), syncColumns)
-    connect(window, rightLayout:GetPropertyChangedSignal("AbsoluteContentSize"), syncColumns)
-    connect(window, columnLayout:GetPropertyChangedSignal("AbsoluteContentSize"), syncColumns)
-    connect(window, leftColumn.ChildAdded, function() task.defer(syncColumns) end)
-    connect(window, leftColumn.ChildRemoved, function() task.defer(syncColumns) end)
-    connect(window, rightColumn.ChildAdded, function() task.defer(syncColumns) end)
-    connect(window, rightColumn.ChildRemoved, function() task.defer(syncColumns) end)
-    task.defer(syncColumns)
+    local columnsSyncQueued = false
+    local function queueSyncColumns()
+        if columnsSyncQueued then return end
+        columnsSyncQueued = true
+        task.defer(function()
+            columnsSyncQueued = false
+            if window._destroyed then return end
+            syncColumns()
+        end)
+    end
+    connect(window, leftLayout:GetPropertyChangedSignal("AbsoluteContentSize"), queueSyncColumns)
+    connect(window, rightLayout:GetPropertyChangedSignal("AbsoluteContentSize"), queueSyncColumns)
+    connect(window, columnLayout:GetPropertyChangedSignal("AbsoluteContentSize"), queueSyncColumns)
+    connect(window, leftColumn.ChildAdded, queueSyncColumns)
+    connect(window, leftColumn.ChildRemoved, queueSyncColumns)
+    connect(window, rightColumn.ChildAdded, queueSyncColumns)
+    connect(window, rightColumn.ChildRemoved, queueSyncColumns)
+    queueSyncColumns()
     return pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout
 end
 
@@ -1691,11 +1756,13 @@ local function makeSubTabCard(window, parent, title)
     }, parent)
     corner(card, 8)
     stroke(card, window.Theme.Border, 0.28, 1)
-    new("UIGradient", {
-        Color = ColorSequence.new(window.Theme.Surface, window.Theme.Background),
-        Transparency = NumberSequence.new(0),
-        Rotation = 90,
-    }, card)
+    if not window.ReduceEffects then
+        new("UIGradient", {
+            Color = ColorSequence.new(window.Theme.Surface, window.Theme.Background),
+            Transparency = NumberSequence.new(0),
+            Rotation = 90,
+        }, card)
+    end
     local cardHeader = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32) }, card)
     pad(cardHeader, 12, 12, 6, 3)
     local cardTitle = textLabel(cardHeader, title, 13, window.Theme.Text, true)
@@ -2189,11 +2256,13 @@ function AxelUI.TabMethods:AddSection(data)
     }, parent)
     corner(card, 9)
     stroke(card, self.Window.Theme.Border, 0.28, 1)
-    new("UIGradient", {
-        Color = ColorSequence.new(self.Window.Theme.Surface, self.Window.Theme.Background),
-        Transparency = NumberSequence.new(0),
-        Rotation = 90,
-    }, card)
+    if not self.Window.ReduceEffects then
+        new("UIGradient", {
+            Color = ColorSequence.new(self.Window.Theme.Surface, self.Window.Theme.Background),
+            Transparency = NumberSequence.new(0),
+            Rotation = 90,
+        }, card)
+    end
     local headerHeight = data.Description ~= "" and 48 or 35
     local header = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, headerHeight) }, card)
     pad(header, 12, 12, 8, 4)
@@ -2203,14 +2272,22 @@ function AxelUI.TabMethods:AddSection(data)
         AutoButtonColor = false,
         BackgroundColor3 = self.Window.Theme.Element,
         BorderSizePixel = 0,
-        Text = "-",
-        TextColor3 = self.Window.Theme.Accent2,
-        TextSize = 16,
-        FontFace = fontFace(nil, true),
+        Text = "",
         Size = UDim2.fromOffset(24, 22),
         Position = UDim2.new(1, -34, 0, 5),
     }, header)
     corner(collapseButton, 8)
+    local collapseGlyph = icon(collapseButton, "plus", 14, self.Window.Theme.Accent2)
+    collapseGlyph.AnchorPoint = Vector2.new(0.5, 0.5)
+    collapseGlyph.Position = UDim2.fromScale(0.5, 0.5)
+    local collapseVertical = nil
+    for _, part in ipairs(collapseGlyph:GetChildren()) do
+        if part.Name == "AxelIconLine" and math.abs(part.Rotation) > 45 then
+            collapseVertical = part
+            break
+        end
+    end
+    if collapseVertical then collapseVertical.Visible = false end
     if section.Description ~= "" then
         local description = textLabel(header, section.Description, 10, self.Window.Theme.SubText, false)
         description.Size = UDim2.new(1, -52, 0, 17)
@@ -2227,22 +2304,47 @@ function AxelUI.TabMethods:AddSection(data)
         end
     end)
     section.Card, section.Body, section.Layout, section.Toggle = card, body, layout, collapseButton
+    section.CollapseGlyph, section.CollapseVertical = collapseGlyph, collapseVertical
     function section:SetCollapsed(value)
         self.Collapsed = value == true
-        collapseButton.Text = self.Collapsed and "+" or "-"
-        tween(collapseButton, { BackgroundColor3 = self.Collapsed and self.Window.Theme.Surface2 or self.Window.Theme.Element }, 0.16)
+        if self.CollapseVertical then self.CollapseVertical.Visible = self.Collapsed end
+        if self.Window.ReduceEffects then
+            collapseButton.BackgroundColor3 = self.Collapsed and self.Window.Theme.Surface2 or self.Window.Theme.Element
+        else
+            tween(collapseButton, { BackgroundColor3 = self.Collapsed and self.Window.Theme.Surface2 or self.Window.Theme.Element }, 0.16)
+        end
         if self.Collapsed then
-            tween(body, { BackgroundTransparency = 1 }, 0.12)
+            if self.Window.ReduceEffects then
+                body.BackgroundTransparency = 1
+            else
+                tween(body, { BackgroundTransparency = 1 }, 0.12)
+            end
             preserveHeight(card, headerHeight)
-            task.delay(0.12, function() if body.Parent and self.Collapsed then body.Visible = false end end)
+            if self.Window.ReduceEffects then
+                body.Visible = false
+            else
+                task.delay(0.12, function() if body.Parent and self.Collapsed then body.Visible = false end end)
+            end
         else
             body.Visible = true
-            tween(body, { BackgroundTransparency = 1 }, 0.14)
+            if self.Window.ReduceEffects then
+                body.BackgroundTransparency = 1
+            else
+                tween(body, { BackgroundTransparency = 1 }, 0.14)
+            end
             if syncBodyHeight then syncBodyHeight() end
         end
     end
     connect(self.Window, collapseButton.MouseButton1Click, function() section:SetCollapsed(not section.Collapsed) end)
     pressAnimation(self.Window, collapseButton)
+    if not self.Window.ReduceEffects then
+        connect(self.Window, collapseButton.MouseEnter, function()
+            tween(collapseButton, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.12)
+        end)
+        connect(self.Window, collapseButton.MouseLeave, function()
+            tween(collapseButton, { BackgroundColor3 = self.Window.Theme.Element }, 0.16)
+        end)
+    end
     self.Window:_registerSearch(card, section.Name .. " " .. section.Description, title, { Container = true })
     table.insert(self.Sections, section)
     if self.ActivePill then self:SelectPill(self.ActivePill, true) end
@@ -2691,6 +2793,7 @@ function AxelUI.SectionMethods:AddDropdown(data)
         ZIndex = 8,
     }, inner)
     corner(selector, 5)
+    local selectorStroke = stroke(selector, self.Window.Theme.Border, 0.38, 1)
     pad(selector, 9, 26, 0, 0)
     selector.TextXAlignment = Enum.TextXAlignment.Left
     selector.TextTruncate = Enum.TextTruncate.AtEnd
@@ -2700,36 +2803,86 @@ function AxelUI.SectionMethods:AddDropdown(data)
     arrow.ZIndex = selector.ZIndex + 1
     local popup
     local handle = { Value = selected, Row = row }
+    local function setSelectorOpen(isOpen)
+        tween(selector, {
+            BackgroundColor3 = isOpen and self.Window.Theme.Background or self.Window.Theme.Element,
+            TextColor3 = isOpen and self.Window.Theme.Accent2 or self.Window.Theme.Text,
+        }, 0.12)
+        tween(selectorStroke, {
+            Color = isOpen and self.Window.Theme.Accent or self.Window.Theme.Border,
+            Transparency = isOpen and 0.04 or 0.38,
+            Thickness = isOpen and 1.25 or 1,
+        }, 0.12)
+        setIconTint(arrow, isOpen and self.Window.Theme.Accent2 or self.Window.Theme.SubText, 0.12)
+    end
     local function close()
-        if popup then popup:Destroy(); popup = nil; tween(arrow, { Rotation = 0 }, 0.14) end
+        if popup then
+            local closingPopup = popup
+            popup = nil
+            animatePopupClose(closingPopup)
+            tween(arrow, { Rotation = 0 }, 0.14)
+            setSelectorOpen(false)
+        end
         if self.Window._dropdownClose == close then self.Window._dropdownClose = nil end
     end
     local function open()
         if popup then close(); return end
-        local popupWidth = 120
-        local popupHeight = math.min(#options * 26 + 3, 190)
+        if self.Window._dropdownClose and self.Window._dropdownClose ~= close then pcall(self.Window._dropdownClose) end
+        local popupWidth = 145
+        local popupHeight = math.min(math.max(#options, 1) * 21 + 8, 150)
         popup = new("ScrollingFrame", {
             Active = true,
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = self.Window.Theme.Surface,
+            BackgroundColor3 = self.Window.Theme.Background,
+            BackgroundTransparency = 0,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(),
             ScrollBarImageColor3 = self.Window.Theme.Accent,
-            ScrollBarThickness = 3,
+            ScrollBarThickness = 2,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             Size = UDim2.fromOffset(popupWidth, popupHeight),
             ZIndex = 50,
         }, self.Window.Gui)
-        corner(popup, 5); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 2, 2, 2, 2)
+        corner(popup, 7); stroke(popup, self.Window.Theme.Accent, 0.08, 1.15); pad(popup, 3, 3, 3, 3)
         placePopup(popup, selector, popupWidth, popupHeight, true)
+        animatePopupOpen(popup)
+        setSelectorOpen(true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
-        local list = new("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
+        new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
+        local function styleOption(button, option)
+            local isSelected = tostring(option) == tostring(handle.Value)
+            button.BackgroundColor3 = isSelected and self.Window.Theme.Accent or self.Window.Theme.Surface2
+            button.TextColor3 = isSelected and self.Window.Theme.Background or self.Window.Theme.Text
+        end
+        if #options == 0 then
+            new("TextLabel", {
+                BackgroundTransparency = 1,
+                FontFace = fontFace(nil, false),
+                Size = UDim2.new(1, 0, 0, 21),
+                Text = "No options",
+                TextColor3 = self.Window.Theme.SubText,
+                TextSize = 10,
+                ZIndex = 51,
+            }, popup)
+        end
         for _, option in ipairs(options) do
-            local optionButton = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Surface2, BorderSizePixel = 0, Text = tostring(option), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.new(1, 0, 0, 25), ZIndex = 51 }, popup)
+            local optionButton = new("TextButton", {
+                AutoButtonColor = false,
+                BackgroundColor3 = tostring(option) == tostring(handle.Value) and self.Window.Theme.Accent or self.Window.Theme.Surface2,
+                BorderSizePixel = 0,
+                Text = tostring(option),
+                TextColor3 = tostring(option) == tostring(handle.Value) and self.Window.Theme.Background or self.Window.Theme.Text,
+                TextSize = 10,
+                FontFace = fontFace(nil, false),
+                Size = UDim2.new(1, 0, 0, 21),
+                ZIndex = 51,
+            }, popup)
             corner(optionButton, 4)
             pressAnimation(self.Window, optionButton)
-            connect(self.Window, optionButton.MouseEnter, function() tween(optionButton, { BackgroundColor3 = self.Window.Theme.ElementHover }, 0.1) end)
-            connect(self.Window, optionButton.MouseLeave, function() tween(optionButton, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.12) end)
+            connect(self.Window, optionButton.MouseEnter, function()
+                tween(optionButton, { BackgroundColor3 = self.Window.Theme.ElementHover, TextColor3 = self.Window.Theme.Accent2 }, 0.1)
+            end)
+            connect(self.Window, optionButton.MouseLeave, function() styleOption(optionButton, option) end)
             connect(self.Window, optionButton.Activated, function()
                 handle.Value = option; selector.Text = tostring(option); close()
                 if type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback, option) end) end
@@ -2813,6 +2966,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         ZIndex = 8,
     }, inner)
     corner(selector, 5)
+    local selectorStroke = stroke(selector, self.Window.Theme.Border, 0.38, 1)
     pad(selector, 9, 27, 0, 0)
     selector.TextXAlignment = Enum.TextXAlignment.Left
     local popup
@@ -2822,58 +2976,105 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
     arrow.ZIndex = selector.ZIndex + 1
     local optionButtons = {}
     local handle = { Value = selected, Row = row }
+    local function setSelectorOpen(isOpen)
+        tween(selector, {
+            BackgroundColor3 = isOpen and self.Window.Theme.Background or self.Window.Theme.Element,
+            TextColor3 = isOpen and self.Window.Theme.Accent2 or self.Window.Theme.Text,
+        }, 0.12)
+        tween(selectorStroke, {
+            Color = isOpen and self.Window.Theme.Accent or self.Window.Theme.Border,
+            Transparency = isOpen and 0.04 or 0.38,
+            Thickness = isOpen and 1.25 or 1,
+        }, 0.12)
+        setIconTint(arrow, isOpen and self.Window.Theme.Accent2 or self.Window.Theme.SubText, 0.12)
+    end
     local function close()
-        if popup then popup:Destroy(); popup = nil; tween(arrow, { Rotation = 0 }, 0.14) end
+        if popup then
+            local closingPopup = popup
+            popup = nil
+            animatePopupClose(closingPopup)
+            tween(arrow, { Rotation = 0 }, 0.14)
+            setSelectorOpen(false)
+        end
         optionButtons = {}
         if self.Window._dropdownClose == close then self.Window._dropdownClose = nil end
     end
-    local function refreshButtons()
+    local function refreshButtons(animatedValue)
         for value, button in pairs(optionButtons) do
             if button and button.Parent then
-                button.Text = (selectedSet[tostring(value)] and "ON  " or "OFF  ") .. tostring(value)
-                button.BackgroundColor3 = selectedSet[tostring(value)] and self.Window.Theme.ElementHover or self.Window.Theme.Surface2
+                local isSelected = selectedSet[tostring(value)] == true
+                button.Text = (isSelected and "ON  " or "OFF  ") .. tostring(value)
+                local background = isSelected and self.Window.Theme.Accent or self.Window.Theme.Surface2
+                local textColor = isSelected and self.Window.Theme.Background or self.Window.Theme.Text
+                if animatedValue ~= nil and tostring(value) == tostring(animatedValue) then
+                    tween(button, { BackgroundColor3 = background, TextColor3 = textColor }, 0.1)
+                else
+                    button.BackgroundColor3 = background
+                    button.TextColor3 = textColor
+                end
             end
         end
     end
     local function open()
         if popup then close(); return end
+        if self.Window._dropdownClose and self.Window._dropdownClose ~= close then pcall(self.Window._dropdownClose) end
         local popupWidth = 140
-        local popupHeight = math.min(#options * 26 + 3, 190)
+        local popupHeight = math.min(math.max(#options, 1) * 21 + 8, 150)
         popup = new("ScrollingFrame", {
             Active = true,
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = self.Window.Theme.Surface,
+            BackgroundColor3 = self.Window.Theme.Background,
+            BackgroundTransparency = 0,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(),
             ScrollBarImageColor3 = self.Window.Theme.Accent,
-            ScrollBarThickness = 3,
+            ScrollBarThickness = 2,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             Size = UDim2.fromOffset(popupWidth, popupHeight),
             ZIndex = 60,
         }, self.Window.Gui)
-        corner(popup, 7); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 2, 2, 2, 2)
+        corner(popup, 7); stroke(popup, self.Window.Theme.Accent, 0.08, 1.15); pad(popup, 3, 3, 3, 3)
         placePopup(popup, selector, popupWidth, popupHeight, true)
+        animatePopupOpen(popup)
+        setSelectorOpen(true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
         new("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
+        if #options == 0 then
+            new("TextLabel", {
+                BackgroundTransparency = 1,
+                FontFace = fontFace(nil, false),
+                Size = UDim2.new(1, 0, 0, 21),
+                Text = "No options",
+                TextColor3 = self.Window.Theme.SubText,
+                TextSize = 10,
+                ZIndex = 61,
+            }, popup)
+        end
         for _, option in ipairs(options) do
             local value = tostring(option)
             local optionButton = new("TextButton", {
                 AutoButtonColor = false,
-                BackgroundColor3 = selectedSet[value] and self.Window.Theme.ElementHover or self.Window.Theme.Surface2,
+                BackgroundColor3 = selectedSet[value] and self.Window.Theme.Accent or self.Window.Theme.Surface2,
                 BorderSizePixel = 0,
                 Text = (selectedSet[value] and "ON  " or "OFF  ") .. value,
-                TextColor3 = self.Window.Theme.Text,
-                TextSize = 11,
+                TextColor3 = selectedSet[value] and self.Window.Theme.Background or self.Window.Theme.Text,
+                TextSize = 10,
                 FontFace = fontFace(nil, false),
-                Size = UDim2.new(1, 0, 0, 25),
+                Size = UDim2.new(1, 0, 0, 21),
                 TextXAlignment = Enum.TextXAlignment.Left,
                 ZIndex = 61,
             }, popup)
             corner(optionButton, 4)
             pressAnimation(self.Window, optionButton)
-            connect(self.Window, optionButton.MouseEnter, function() tween(optionButton, { BackgroundColor3 = self.Window.Theme.ElementHover }, 0.1) end)
+            connect(self.Window, optionButton.MouseEnter, function()
+                tween(optionButton, { BackgroundColor3 = self.Window.Theme.ElementHover, TextColor3 = self.Window.Theme.Accent2 }, 0.1)
+            end)
             connect(self.Window, optionButton.MouseLeave, function()
-                tween(optionButton, { BackgroundColor3 = selectedSet[value] and self.Window.Theme.ElementHover or self.Window.Theme.Surface2 }, 0.12)
+                local isSelected = selectedSet[value] == true
+                tween(optionButton, {
+                    BackgroundColor3 = isSelected and self.Window.Theme.Accent or self.Window.Theme.Surface2,
+                    TextColor3 = isSelected and self.Window.Theme.Background or self.Window.Theme.Text,
+                }, 0.12)
             end)
             optionButtons[value] = optionButton
             connect(self.Window, optionButton.Activated, function()
@@ -2887,7 +3088,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
                     table.insert(selected, option)
                 end
                 selector.Text = displayValue()
-                refreshButtons()
+                refreshButtons(value)
                 if type(data.Callback or data.callback) == "function" then
                     task.spawn(function() pcall(data.Callback or data.callback, selected) end)
                 end
@@ -3027,17 +3228,47 @@ AxelUI.SectionMethods.AddColorpicker = AxelUI.SectionMethods.AddColorPicker
 function AxelUI.SectionMethods:AddInput(data)
     data = data or {}
     data.Icon = data.Icon or "search"
-    data.RightReserved = data.RightReserved or 170
-    local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 42)
-    local box = new("TextBox", { BackgroundColor3 = self.Window.Theme.Element, BorderSizePixel = 0, ClearTextOnFocus = false, PlaceholderText = tostring(data.Placeholder or "Input"), PlaceholderColor3 = self.Window.Theme.Muted, Text = tostring(data.Default or ""), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(160, 25), Position = UDim2.new(1, -170, 0.5, -12), ZIndex = 8 }, inner)
-    corner(box, 5); pad(box, 8, 8, 0, 0)
+    local fullWidth = data.FullWidth == true or data.Layout == "Stacked"
+    data.RightReserved = data.RightReserved or (fullWidth and 18 or 170)
+    local row, inner, title = self.Window:_makeRow(self.Body, data, data.Height or (fullWidth and 60 or 42))
+    local titleX = title and title.Position.X.Offset or 27
+    local box = new("TextBox", {
+        BackgroundColor3 = self.Window.Theme.Element,
+        BorderSizePixel = 0,
+        ClearTextOnFocus = false,
+        ClipsDescendants = true,
+        MultiLine = false,
+        PlaceholderText = tostring(data.Placeholder or "Input"),
+        PlaceholderColor3 = self.Window.Theme.Muted,
+        Text = tostring(data.Default or ""),
+        TextColor3 = self.Window.Theme.Text,
+        TextSize = 11,
+        TextWrapped = false,
+        TextScaled = false,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        FontFace = fontFace(nil, false),
+        Size = fullWidth and UDim2.new(1, -(titleX + 18), 0, 24) or UDim2.fromOffset(160, 25),
+        Position = fullWidth and UDim2.new(0, titleX, 0, 28) or UDim2.new(1, -170, 0.5, -12),
+        ZIndex = 8,
+    }, inner)
+    corner(box, 5)
+    pad(box, 8, 8, 0, 0)
+    local boxStroke = stroke(box, self.Window.Theme.Border, 0.35, 1)
     local handle = { Instance = box, Value = box.Text }
     function handle:Set(value, silent)
         self.Value = tostring(value or ""); box.Text = self.Value
         if not silent and type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback, self.Value) end) end
     end
     function handle:Get() return box.Text end
+    connect(self.Window, box.Focused, function()
+        tween(boxStroke, { Color = self.Window.Theme.Accent, Transparency = 0.04, Thickness = 1.15 }, 0.12)
+    end)
     connect(self.Window, box.FocusLost, function() handle:Set(box.Text) end)
+    connect(self.Window, box.FocusLost, function()
+        tween(boxStroke, { Color = self.Window.Theme.Border, Transparency = 0.35, Thickness = 1 }, 0.14)
+    end)
     self.Window:_registerFlag(data.Flag, handle)
     table.insert(self.Controls, handle)
     return handle
@@ -3329,7 +3560,7 @@ function AxelUI.SectionMethods:AddMetricGrid(data)
             self.Color = color or self.Color
             metricValue.Text = self.Text
             metricValue.TextColor3 = self.Color
-            if item.IconColor == nil then setIconTint(metricIcon, self.Color) end
+            if item.IconColor == nil then setIconTint(metricIcon, self.Color, window.ReduceEffects and 0 or nil) end
         end
         function metric:Get() return self.Text end
         local key = tostring(item.Key or metricName)
@@ -3436,7 +3667,32 @@ function AxelUI:Unload()
     if self._dropdownClose then pcall(self._dropdownClose) end
     if self.Gui then pcall(function() self.Gui:Destroy() end) end
     if self._globalKey and _G[self._globalKey] == self then _G[self._globalKey] = nil end
-    if AxelUI._activeWindow == self then AxelUI._activeWindow = nil end
+    local registry = self._windowRegistry
+    if registry and self._globalKey and registry[self._globalKey] == self then
+        registry[self._globalKey] = nil
+        if next(registry) == nil and self._sharedEnvironment
+            and self._sharedEnvironment.__AxelUI_WindowRegistry == registry then
+            self._sharedEnvironment.__AxelUI_WindowRegistry = nil
+        end
+    end
+    if AxelUI._activeWindow == self then
+        AxelUI._activeWindow = nil
+        ACTIVE_FONT = nil
+        ACTIVE_ASSET_FOLDER = nil
+    end
+    self._flags = {}
+    self._searchRows = {}
+    self._searchData = setmetatable({}, { __mode = "k" })
+    self._notifications = {}
+    self.Tabs = {}
+    self.ActiveTab = nil
+    self._loadingOverlay = nil
+    self.RestoreButton = nil
+    self.TouchButton = nil
+    self.Window = nil
+    self.Gui = nil
+    self._windowRegistry = nil
+    self._sharedEnvironment = nil
     return true
 end
 
@@ -3532,7 +3788,39 @@ function AxelUI.new(options)
     options = options or {}
     local glassOptions = type(options.Glass) == "table" and options.Glass or {}
     local globalKey = tostring(options.GuiName or options.Name or "AxelUI")
-    if _G[globalKey] and type(_G[globalKey].Unload) == "function" then pcall(function() _G[globalKey]:Unload() end) end
+    local sharedEnvironment = getSharedEnvironment()
+    local windowRegistry = sharedEnvironment.__AxelUI_WindowRegistry
+    if type(windowRegistry) ~= "table" then
+        windowRegistry = {}
+        sharedEnvironment.__AxelUI_WindowRegistry = windowRegistry
+    end
+    local seenWindows = {}
+    local previousWindows = {}
+    if windowRegistry[globalKey] then table.insert(previousWindows, windowRegistry[globalKey]) end
+    if _G[globalKey] then table.insert(previousWindows, _G[globalKey]) end
+    if AxelUI._activeWindow then table.insert(previousWindows, AxelUI._activeWindow) end
+    for _, previous in ipairs(previousWindows) do
+        if previous and not seenWindows[previous] then
+            seenWindows[previous] = true
+            local matchesName = previous == windowRegistry[globalKey]
+                or (type(previous) == "table" and previous._globalKey == globalKey)
+            if matchesName and type(previous) == "table" and type(previous.Unload) == "function" then
+                pcall(function() previous:Unload() end)
+            end
+        end
+    end
+    sharedEnvironment.__AxelUI_WindowRegistry = windowRegistry
+    local guiParent = resolveParent()
+    if guiParent then
+        local childrenOk, children = pcall(function() return guiParent:GetChildren() end)
+        if childrenOk then
+            for _, child in ipairs(children) do
+                if child.Name == globalKey and child:IsA("ScreenGui") then
+                    pcall(function() child:Destroy() end)
+                end
+            end
+        end
+    end
     local self = setmetatable({
         _connections = {},
         _searchRows = {},
@@ -3542,6 +3830,8 @@ function AxelUI.new(options)
         _open = true,
         StartMinimized = options.StartMinimized == true,
         _globalKey = globalKey,
+        _sharedEnvironment = sharedEnvironment,
+        _windowRegistry = windowRegistry,
         Theme = normalizeTheme(options.Theme, AxelUI._pendingTheme),
         Tabs = {},
         ActiveTab = nil,
@@ -3571,8 +3861,9 @@ function AxelUI.new(options)
     ACTIVE_FONT = options.Font
     ACTIVE_ASSET_FOLDER = self.AssetFolder
     self.TabMethods = AxelUI.TabMethods
-    self.Gui = new("ScreenGui", { Name = globalKey, IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global }, resolveParent())
+    self.Gui = new("ScreenGui", { Name = globalKey, IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global }, guiParent)
     _G[globalKey] = self
+    windowRegistry[globalKey] = self
     AxelUI._activeWindow = self
 
     self.Window = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = self.DesktopSize, ClipsDescendants = true }, self.Gui)
@@ -3815,8 +4106,10 @@ function AxelUI.new(options)
         avatar.Visible = false
         avatarFallback.Visible = true
     end, 5, avatarRetries)
-    local profileName = textLabel(profile, Players.LocalPlayer and Players.LocalPlayer.DisplayName or "Axel User", 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 8); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
-    local profileState = textLabel(profile, "Ready to play", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 27); profileState.Size = UDim2.new(1, -54, 0, 14)
+    local localPlayer = Players.LocalPlayer
+    local inGameUsername = localPlayer and tostring(localPlayer.Name or "player") or "player"
+    local profileName = textLabel(profile, "@" .. inGameUsername, 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 8); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
+    local profileState = textLabel(profile, "Axel is ready", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 27); profileState.Size = UDim2.new(1, -54, 0, 14)
     local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -50); footer.Size = UDim2.new(1, -28, 0, 40); footer.TextWrapped = true; footer.TextYAlignment = Enum.TextYAlignment.Top
     self.ProfileCard, self.ProfileAvatar, self.ProfileName = profile, avatar, profileName
     self._profileAvatarRetries = avatarRetries
@@ -4035,21 +4328,49 @@ function AxelUI.new(options)
     local loadingBar = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.new(1, -44, 0, 5), Position = UDim2.fromOffset(22, 104), ZIndex = 102 }, loaderCard); corner(loadingBar, 4)
     local loadingFill = new("Frame", { BackgroundColor3 = self.Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, 0, 1, 0), ZIndex = 103 }, loadingBar); corner(loadingFill, 4)
     local loadingHint = textLabel(loaderCard, "Loading modules", 9, self.Theme.Muted, false); loadingHint.Position = UDim2.fromOffset(22, 119); loadingHint.Size = UDim2.new(1, -44, 0, 16); loadingHint.ZIndex = 102
-    tween(self.Scale, { Scale = 1 }, 0.45, Enum.EasingStyle.Back)
-    tween(loaderScale, { Scale = 1 }, 0.48, Enum.EasingStyle.Back)
-    tween(loadingFill, { Size = UDim2.fromScale(1, 1) }, 0.72, Enum.EasingStyle.Quint)
-    task.delay(0.78, function()
-        if self._destroyed or not overlay.Parent then return end
-        tween(loaderScale, { Scale = 0.94 }, 0.16, Enum.EasingStyle.Quad)
-        tween(overlay, { BackgroundTransparency = 1 }, 0.28)
-        tween(loaderCard, { BackgroundTransparency = 1 }, 0.22)
-        fadeIcon(overlayIcon, 0.2)
-        tween(loadingTitle, { TextTransparency = 1 }, 0.2)
-        tween(loadingText, { TextTransparency = 1 }, 0.2)
-        tween(loadingHint, { TextTransparency = 1 }, 0.2)
-        tween(loadingBar, { BackgroundTransparency = 1 }, 0.2)
-        tween(loadingFill, { BackgroundTransparency = 1 }, 0.2)
-        task.delay(0.3, function() if overlay.Parent then overlay:Destroy() end end)
+    self._loadingOverlay = overlay
+    self._loadingFinished = false
+    self._loadingStartedAt = os.clock()
+    if self.ReduceEffects then
+        self.Scale.Scale = 1
+        loaderScale.Scale = 1
+        loadingFill.Size = UDim2.fromScale(1, 1)
+    else
+        tween(self.Scale, { Scale = 1 }, 0.45, Enum.EasingStyle.Back)
+        tween(loaderScale, { Scale = 1 }, 0.48, Enum.EasingStyle.Back)
+        tween(loadingFill, { Size = UDim2.fromScale(1, 1) }, 0.72, Enum.EasingStyle.Quint)
+    end
+    function self:FinishLoading()
+        if self._destroyed or self._loadingFinished then return false end
+        self._loadingFinished = true
+        local minDisplay = self.ReduceEffects and 0.12 or 0.72
+        local remaining = math.max(0, minDisplay - (os.clock() - (self._loadingStartedAt or os.clock())))
+        task.delay(remaining, function()
+            if self._destroyed or not overlay.Parent then return end
+            if self.ReduceEffects then
+                overlay:Destroy()
+                self._loadingOverlay = nil
+                return
+            end
+            tween(loaderScale, { Scale = 0.94 }, 0.16, Enum.EasingStyle.Quad)
+            tween(overlay, { BackgroundTransparency = 1 }, 0.28)
+            tween(loaderCard, { BackgroundTransparency = 1 }, 0.22)
+            fadeIcon(overlayIcon, 0.2)
+            tween(loadingTitle, { TextTransparency = 1 }, 0.2)
+            tween(loadingText, { TextTransparency = 1 }, 0.2)
+            tween(loadingHint, { TextTransparency = 1 }, 0.2)
+            tween(loadingBar, { BackgroundTransparency = 1 }, 0.2)
+            tween(loadingFill, { BackgroundTransparency = 1 }, 0.2)
+            task.delay(0.3, function()
+                if overlay.Parent then overlay:Destroy() end
+                if self._loadingOverlay == overlay then self._loadingOverlay = nil end
+            end)
+        end)
+        return true
+    end
+    local loadingTimeout = math.clamp(tonumber(options.LoadingTimeout) or 1.5, 1, 30)
+    task.delay(loadingTimeout, function()
+        if not self._loadingFinished and not self._destroyed then self:FinishLoading() end
     end)
 
     if self.StartMinimized then
@@ -4080,7 +4401,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 7.2
+AxelUI.Version = 7.6
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
