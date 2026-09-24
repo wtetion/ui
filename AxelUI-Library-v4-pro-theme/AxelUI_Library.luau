@@ -710,6 +710,9 @@ end
 
 local function pressAnimation(self, button, scaleObject)
     if not button then return end
+    -- Low-end touch devices benefit more from fewer live GUI objects and
+    -- input connections than from decorative press scaling.
+    if self.ReduceEffects then return end
     local scale = scaleObject or new("UIScale", { Scale = 1 }, button)
     connect(self, button.MouseEnter, function()
         tween(scale, { Scale = 1.025 }, 0.13)
@@ -727,6 +730,7 @@ end
 
 local function addButtonGlass(self, button, restingTransparency)
     if not button then return end
+    if self.ReduceEffects then return end
     restingTransparency = restingTransparency or 0
     connect(self, button.MouseEnter, function()
         tween(button, { BackgroundTransparency = math.max(restingTransparency, 0.12) }, 0.12)
@@ -917,24 +921,27 @@ function AxelUI:_makeRow(parent, data, height)
     }, parent)
     corner(row, 8)
     local rowStroke = stroke(row, data.Primary and self.Theme.Accent2 or self.Theme.Border, 0.4, 1)
-    new("UIGradient", {
-        Color = ColorSequence.new(data.Primary and self.Theme.Accent or self.Theme.Surface2, data.Primary and self.Theme.Accent2 or self.Theme.Element),
-        Transparency = NumberSequence.new(0),
-        Rotation = 0,
-    }, row)
-    local hoverGlass = new("Frame", {
-        BackgroundColor3 = self.Theme.Accent2,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Size = UDim2.fromScale(1, 1),
-        ZIndex = (tonumber(row.ZIndex) or 0) + 1,
-    }, row)
-    corner(hoverGlass, 8)
-    new("UIGradient", {
-        Color = ColorSequence.new(Color3.new(1, 1, 1), self.Theme.Accent2),
-        Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.34), NumberSequenceKeypoint.new(1, 0.9) }),
-        Rotation = 0,
-    }, hoverGlass)
+    local hoverGlass
+    if not self.ReduceEffects then
+        new("UIGradient", {
+            Color = ColorSequence.new(data.Primary and self.Theme.Accent or self.Theme.Surface2, data.Primary and self.Theme.Accent2 or self.Theme.Element),
+            Transparency = NumberSequence.new(0),
+            Rotation = 0,
+        }, row)
+        hoverGlass = new("Frame", {
+            BackgroundColor3 = self.Theme.Accent2,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Size = UDim2.fromScale(1, 1),
+            ZIndex = (tonumber(row.ZIndex) or 0) + 1,
+        }, row)
+        corner(hoverGlass, 8)
+        new("UIGradient", {
+            Color = ColorSequence.new(Color3.new(1, 1, 1), self.Theme.Accent2),
+            Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.34), NumberSequenceKeypoint.new(1, 0.9) }),
+            Rotation = 0,
+        }, hoverGlass)
+    end
     local inner = new("Frame", {
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 1, 0),
@@ -962,16 +969,18 @@ function AxelUI:_makeRow(parent, data, height)
         descriptionLabel.Position = UDim2.fromOffset(textOffset, 17)
     end
     pressAnimation(self, row)
-    connect(self, row.MouseEnter, function()
-        tween(row, { BackgroundColor3 = self.Theme.ElementHover }, 0.12)
-        tween(rowStroke, { Transparency = 0.05 }, 0.12)
-        tween(hoverGlass, { BackgroundTransparency = 0.9 }, 0.12)
-    end)
-    connect(self, row.MouseLeave, function()
-        tween(row, { BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2 }, 0.18)
-        tween(rowStroke, { Transparency = 0.4 }, 0.18)
-        tween(hoverGlass, { BackgroundTransparency = 1 }, 0.18)
-    end)
+    if not self.ReduceEffects then
+        connect(self, row.MouseEnter, function()
+            tween(row, { BackgroundColor3 = self.Theme.ElementHover }, 0.12)
+            tween(rowStroke, { Transparency = 0.05 }, 0.12)
+            tween(hoverGlass, { BackgroundTransparency = 0.9 }, 0.12)
+        end)
+        connect(self, row.MouseLeave, function()
+            tween(row, { BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2 }, 0.18)
+            tween(rowStroke, { Transparency = 0.4 }, 0.18)
+            tween(hoverGlass, { BackgroundTransparency = 1 }, 0.18)
+        end)
+    end
     self:_registerSearch(row, (data.Name or "") .. " " .. (data.Description or ""), title)
     return row, inner, title, descriptionLabel
 end
@@ -2514,20 +2523,50 @@ function AxelUI.SectionMethods:AddToggle(data)
     function handle:Set(value, silent)
         self.Value = value == true
         local x = self.Value and 23 or 3
-        tween(knob, { Position = UDim2.fromOffset(x, 3), BackgroundColor3 = self.Window.Theme.Text }, 0.16)
-        tween(track, { BackgroundColor3 = self.Value and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
-        tween(trackStroke, { Color = self.Value and self.Window.Theme.Accent2 or self.Window.Theme.Border, Transparency = self.Value and 0.04 or 0.28, Thickness = self.Value and 1.5 or 1 }, 0.16)
+        local knobPosition = UDim2.fromOffset(x, 3)
+        local trackColor = self.Value and self.Window.Theme.Accent or self.Window.Theme.Element
+        local strokeColor = self.Value and self.Window.Theme.Accent2 or self.Window.Theme.Border
+        local strokeTransparency = self.Value and 0.04 or 0.28
+        local strokeThickness = self.Value and 1.5 or 1
+        if self.Window.ReduceEffects then
+            knob.Position = knobPosition
+            knob.BackgroundColor3 = self.Window.Theme.Text
+            track.BackgroundColor3 = trackColor
+            trackStroke.Color = strokeColor
+            trackStroke.Transparency = strokeTransparency
+            trackStroke.Thickness = strokeThickness
+        else
+            tween(knob, { Position = knobPosition, BackgroundColor3 = self.Window.Theme.Text }, 0.16)
+            tween(track, { BackgroundColor3 = trackColor }, 0.16)
+            tween(trackStroke, { Color = strokeColor, Transparency = strokeTransparency, Thickness = strokeThickness }, 0.16)
+        end
         if not silent and type(data.Callback or data.callback) == "function" then
             local callback = data.Callback or data.callback
             local callbackValue = self.Value
-            task.defer(function()
+            task.spawn(function()
+                -- Let the input/state update reach a render step before a
+                -- feature callback starts work. Other AxelUI controls already
+                -- dispatch callbacks on spawned tasks; toggles must do the
+                -- same so a long callback cannot hold the input resumption.
+                task.wait()
                 if self.Window and self.Window._destroyed then return end
                 pcall(callback, callbackValue)
             end)
         end
     end
     function handle:Get() return self.Value end
-    connect(self.Window, row.MouseButton1Click, function() handle:Set(not handle.Value) end)
+    local function activateToggle()
+        if self.Window and self.Window._destroyed then return end
+        handle:Set(not handle.Value)
+    end
+    local toggleConnection
+    local activatedOk, activatedSignal = pcall(function() return row.Activated end)
+    if activatedOk and activatedSignal then
+        toggleConnection = connect(self.Window, activatedSignal, activateToggle)
+    end
+    if not toggleConnection then
+        connect(self.Window, row.MouseButton1Click, activateToggle)
+    end
     handle:Set(handle.Value, true)
     self.Window:_registerFlag(data.Flag, handle)
     table.insert(self.Controls, handle)
@@ -3517,6 +3556,7 @@ function AxelUI.new(options)
         ShowResizeGrip = options.ShowResizeGrip == true,
         GlassEnabled = type(options.Glass) == "boolean" and options.Glass or glassOptions.Enabled == true,
         GlassTransparency = math.clamp(tonumber(glassOptions.Transparency or options.GlassTransparency) or 0.22, 0, 0.45),
+        ReduceEffects = options.ReduceEffects == true or (options.ReduceEffects ~= false and LOW_END_TOUCH_CLIENT),
         AnimateAccents = options.AnimateAccents == true or (options.AnimateAccents ~= false and not LOW_END_TOUCH_CLIENT),
         AnimateOpenClose = options.AnimateOpenClose == true or (options.AnimateOpenClose ~= false and not LOW_END_TOUCH_CLIENT),
         AnimatedBorder = options.AnimatedBorder == true or (options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false and not LOW_END_TOUCH_CLIENT),
@@ -4040,7 +4080,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 7.0
+AxelUI.Version = 7.2
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
