@@ -2622,6 +2622,37 @@ function AxelUI.SectionMethods:AddToggle(data)
     local knob = new("Frame", { BackgroundColor3 = self.Window.Theme.Text, Size = UDim2.fromOffset(16, 16), Position = UDim2.fromOffset(3, 3), ZIndex = 9 }, track)
     corner(knob, 8)
     local handle = { Value = data.Default == true, Row = row, Window = self.Window }
+    local callbackRevision = 0
+    local callbackScheduled = false
+    local callbackRunning = false
+    local function dispatchToggleCallback()
+        local callback = data.Callback or data.callback
+        if type(callback) ~= "function" then return end
+        callbackRevision += 1
+        if callbackScheduled or callbackRunning then return end
+        callbackScheduled = true
+        -- Let the input event and the toggle's visual state settle first. A
+        -- short per-toggle queue also collapses duplicate touch/mouse signals
+        -- so a burst cannot start overlapping copies of the same feature.
+        task.delay(0.06, function()
+            callbackScheduled = false
+            if not self.Window or self.Window._destroyed then return end
+            local dispatchedRevision = callbackRevision
+            local callbackValue = handle.Value
+            callbackRunning = true
+            task.spawn(function()
+                if not self.Window or self.Window._destroyed then
+                    callbackRunning = false
+                    return
+                end
+                pcall(callback, callbackValue)
+                callbackRunning = false
+                if callbackRevision ~= dispatchedRevision then
+                    dispatchToggleCallback()
+                end
+            end)
+        end)
+    end
     function handle:Set(value, silent)
         self.Value = value == true
         local x = self.Value and 23 or 3
@@ -2642,19 +2673,7 @@ function AxelUI.SectionMethods:AddToggle(data)
             tween(track, { BackgroundColor3 = trackColor }, 0.16)
             tween(trackStroke, { Color = strokeColor, Transparency = strokeTransparency, Thickness = strokeThickness }, 0.16)
         end
-        if not silent and type(data.Callback or data.callback) == "function" then
-            local callback = data.Callback or data.callback
-            local callbackValue = self.Value
-            task.spawn(function()
-                -- Let the input/state update reach a render step before a
-                -- feature callback starts work. Other AxelUI controls already
-                -- dispatch callbacks on spawned tasks; toggles must do the
-                -- same so a long callback cannot hold the input resumption.
-                task.wait()
-                if self.Window and self.Window._destroyed then return end
-                pcall(callback, callbackValue)
-            end)
-        end
+        if not silent then dispatchToggleCallback() end
     end
     function handle:Get() return self.Value end
     local function activateToggle()
@@ -3543,9 +3562,10 @@ function AxelUI.SectionMethods:AddMetricGrid(data)
             LayoutOrder = item.LayoutOrder or index,
         }, grid)
         corner(tile, 7); stroke(tile, window.Theme.Border, 0.22, 1)
-        local metricIcon = icon(tile, item.Icon or "activity", 13, item.IconColor or metricColor)
+        local metricIcon = icon(tile, item.Icon or "activity", 15, item.IconColor or metricColor)
         metricIcon.Position = UDim2.fromOffset(8, 6)
-        metricIcon.ZIndex = 6
+        -- Keep this icon above the tile under global ScreenGui ZIndex.
+        metricIcon.ZIndex = (tonumber(tile.ZIndex) or 0) + 1
         local metricTitle = textLabel(tile, metricName, 9, window.Theme.SubText, false)
         metricTitle.Position = UDim2.fromOffset(26, 5)
         metricTitle.Size = UDim2.new(1, -32, 0, 15)
@@ -4108,10 +4128,11 @@ function AxelUI.new(options)
     end, 5, avatarRetries)
     local localPlayer = Players.LocalPlayer
     local inGameUsername = localPlayer and tostring(localPlayer.Name or "player") or "player"
-    local profileName = textLabel(profile, "@" .. inGameUsername, 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 8); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
-    local profileState = textLabel(profile, "Axel is ready", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 27); profileState.Size = UDim2.new(1, -54, 0, 14)
+    local localDisplayName = localPlayer and tostring(localPlayer.DisplayName or localPlayer.Name or "Axel User") or "Axel User"
+    local profileName = textLabel(profile, localDisplayName, 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 7); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
+    local profileUsername = textLabel(profile, "@" .. inGameUsername, 9, self.Theme.Danger, false); profileUsername.Position = UDim2.fromOffset(46, 27); profileUsername.Size = UDim2.new(1, -54, 0, 14); profileUsername.TextTruncate = Enum.TextTruncate.AtEnd
     local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -50); footer.Size = UDim2.new(1, -28, 0, 40); footer.TextWrapped = true; footer.TextYAlignment = Enum.TextYAlignment.Top
-    self.ProfileCard, self.ProfileAvatar, self.ProfileName = profile, avatar, profileName
+    self.ProfileCard, self.ProfileAvatar, self.ProfileName, self.ProfileUsername = profile, avatar, profileName, profileUsername
     self._profileAvatarRetries = avatarRetries
     self.Footer = footer
 
@@ -4401,7 +4422,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 7.6
+AxelUI.Version = 7.8
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
