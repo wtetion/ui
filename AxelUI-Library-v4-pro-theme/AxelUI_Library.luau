@@ -30,8 +30,10 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local LOW_END_TOUCH_CLIENT = UserInputService.TouchEnabled == true
 local ACTIVE_FONT
 local ACTIVE_ASSET_FOLDER
+local GOLD_GRADIENT_ANIMATIONS = setmetatable({}, { __mode = "k" })
 
 local DEFAULT_THEME = {
     Background = Color3.fromRGB(12, 13, 17),
@@ -756,22 +758,59 @@ local function addGoldGradient(self, button)
         Rotation = 0,
         Offset = Vector2.new(-1, 0),
     }, button)
-    self._accentTweens = self._accentTweens or {}
-    local ok, animation = pcall(function()
-        return TweenService:Create(gradient, TweenInfo.new(2.8, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {
-            Offset = Vector2.new(1, 0),
-        })
-    end)
-    if ok and animation then
-        table.insert(self._accentTweens, animation)
-        animation:Play()
+    if self.AnimateAccents then
+        self._accentTweens = self._accentTweens or {}
+        local ok, animation = pcall(function()
+            return TweenService:Create(gradient, TweenInfo.new(2.8, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true), {
+                Offset = Vector2.new(1, 0),
+            })
+        end)
+        if ok and animation then
+            local entry = { Gradient = gradient, Tween = animation, Window = self }
+            table.insert(self._accentTweens, entry)
+            GOLD_GRADIENT_ANIMATIONS[gradient] = entry
+        end
     end
     return gradient
 end
 
 local function setGoldGradientActive(gradient, active)
     if gradient then
-        pcall(function() gradient.Enabled = active == true end)
+        active = active == true
+        pcall(function() gradient.Enabled = active end)
+        local entry = GOLD_GRADIENT_ANIMATIONS[gradient]
+        if entry and entry.Tween then
+            pcall(function()
+                local shouldPlay = active and entry.Window and entry.Window.AnimateAccents and entry.Window._open
+                if shouldPlay and entry.Tween.PlaybackState ~= Enum.PlaybackState.Playing then
+                    entry.Tween:Play()
+                elseif not shouldPlay and entry.Tween.PlaybackState == Enum.PlaybackState.Playing then
+                    entry.Tween:Pause()
+                end
+            end)
+        end
+    end
+end
+
+local function setAccentAnimations(self, enabled)
+    local shouldRun = enabled == true and self.AnimateAccents == true and self._open == true
+    local function setTweenState(animation, play)
+        if not animation then return end
+        pcall(function()
+            if play and animation.PlaybackState ~= Enum.PlaybackState.Playing then
+                animation:Play()
+            elseif not play and animation.PlaybackState == Enum.PlaybackState.Playing then
+                animation:Pause()
+            end
+        end)
+    end
+
+    setTweenState(self._edgeTween, shouldRun)
+    for _, animation in ipairs(self._glintTweens or {}) do
+        setTweenState(animation, shouldRun)
+    end
+    for _, entry in ipairs(self._accentTweens or {}) do
+        setTweenState(entry.Tween, shouldRun and entry.Gradient and entry.Gradient.Enabled == true)
     end
 end
 
@@ -1081,13 +1120,18 @@ end
 function AxelUI:SetOpen(visible)
     if self._destroyed or not self.Window then return end
     visible = visible == true
+    self._open = visible
     if visible then
         self.Window.Visible = true
-        self.Window.GroupTransparency = 1
         self.Window.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
-        if self.Scale then self.Scale.Scale = 0.9 end
-        tween(self.Window, { GroupTransparency = 0 }, 0.22, Enum.EasingStyle.Quint)
-        tween(self.Scale, { Scale = 1 }, 0.32, Enum.EasingStyle.Back)
+        if self.Scale then
+            if self.AnimateOpenClose then
+                self.Scale.Scale = 0.97
+                tween(self.Scale, { Scale = 1 }, 0.14, Enum.EasingStyle.Quint)
+            else
+                self.Scale.Scale = 1
+            end
+        end
         if self.GlowStroke then
             tween(self.GlowStroke, { Transparency = 0.015, Thickness = 2 }, 0.14, Enum.EasingStyle.Quint)
             task.delay(0.62, function()
@@ -1099,14 +1143,11 @@ function AxelUI:SetOpen(visible)
             task.delay(0.13, function() if self._open and self.RestoreButton then self.RestoreButton.Visible = false end end)
         end
     else
-        tween(self.Scale, { Scale = 0.88 }, 0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        tween(self.Window, { GroupTransparency = 1 }, 0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
         tween(self.GlowStroke, { Transparency = 0.72, Thickness = 1 }, 0.18)
-        task.delay(0.22, function()
+        local function finishClose()
             if not self._destroyed and not self._open then
                 self.Window.Visible = false
-                self.Window.GroupTransparency = 0
-                self.Scale.Scale = 1
+                if self.Scale then self.Scale.Scale = 1 end
                 if self.RestoreButton then
                     self.RestoreButton.Position = UDim2.new(0.5, -94, 0.5, -24)
                     self.RestoreButton.Visible = true
@@ -1116,9 +1157,15 @@ function AxelUI:SetOpen(visible)
                     if self.RestoreScale then self.RestoreScale.Scale = 0.72; tween(self.RestoreScale, { Scale = 1 }, 0.28, Enum.EasingStyle.Back) end
                 end
             end
-        end)
+        end
+        if self.AnimateOpenClose then
+            if self.Scale then tween(self.Scale, { Scale = 0.97 }, 0.12, Enum.EasingStyle.Quint, Enum.EasingDirection.In) end
+            task.delay(0.13, finishClose)
+        else
+            finishClose()
+        end
     end
-    self._open = visible
+    setAccentAnimations(self, visible)
     if self.TouchButton and self.TouchButton ~= self.RestoreButton then self.TouchButton.Visible = not visible end
 end
 
@@ -1790,7 +1837,7 @@ function AxelUI.TabMethods:AddHero(data)
     local welcomeContent = textLabel(welcome, data.WelcomeContent or "Powerful tools. A smoother way to play.", 11, self.Window.Theme.SubText, false)
     welcomeContent.Position = UDim2.fromOffset(8, 76); welcomeContent.Size = UDim2.new(1, -12, 0, 20); welcomeContent.TextWrapped = true; welcomeContent.ZIndex = 7
 
-    local banner = new("CanvasGroup", {
+    local banner = new("Frame", {
         BackgroundColor3 = self.Window.Theme.Element,
         BorderSizePixel = 0,
         Position = UDim2.new(0.35, 8, 0, 0),
@@ -2253,7 +2300,7 @@ end
 function AxelUI.SectionMethods:AddBanner(data)
     data = data or {}
     local height = tonumber(data.Height) or 112
-    local holder = new("CanvasGroup", {
+    local holder = new("Frame", {
         BackgroundColor3 = self.Window.Theme.Element,
         BorderSizePixel = 0,
         Size = UDim2.new(1, 0, 0, height),
@@ -2336,7 +2383,7 @@ AxelUI.SectionMethods.AddHero = AxelUI.SectionMethods.AddBanner
 function AxelUI.SectionMethods:AddImage(data)
     data = type(data) == "table" and data or { Image = data }
     local height = tonumber(data.Height) or 120
-    local holder = new("CanvasGroup", {
+    local holder = new("Frame", {
         BackgroundColor3 = self.Window.Theme.Background,
         BorderSizePixel = 0,
         Size = UDim2.new(1, 0, 0, height),
@@ -3338,24 +3385,17 @@ function AxelUI:Unload()
     self._destroyed = true
     if self._edgeTween then pcall(function() self._edgeTween:Cancel() end); self._edgeTween = nil end
     if self._tabTween then pcall(function() self._tabTween:Cancel() end); self._tabTween = nil end
-    for _, animation in ipairs(self._accentTweens or {}) do pcall(function() animation:Cancel() end) end
+    for _, entry in ipairs(self._accentTweens or {}) do
+        if entry.Gradient then GOLD_GRADIENT_ANIMATIONS[entry.Gradient] = nil end
+        if entry.Tween then pcall(function() entry.Tween:Cancel() end) end
+    end
+    for _, animation in ipairs(self._glintTweens or {}) do pcall(function() animation:Cancel() end) end
     self._accentTweens = {}
+    self._glintTweens = {}
     for _, connection in ipairs(self._connections) do pcall(function() connection:Disconnect() end) end
     self._connections = {}
     if self._dropdownClose then pcall(self._dropdownClose) end
-    if self.Window and self.Window.Parent then
-        tween(self.Scale, { Scale = 0.92 }, 0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        tween(self.Window, { BackgroundTransparency = 1 }, 0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        for _, object in ipairs(self.Window:GetDescendants()) do
-            pcall(function()
-                if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then tween(object, { TextTransparency = 1 }, 0.18) end
-                if object:IsA("ImageLabel") or object:IsA("ImageButton") then tween(object, { ImageTransparency = 1 }, 0.18) end
-            end)
-        end
-    end
-    task.delay(0.25, function()
-        if self.Gui then pcall(function() self.Gui:Destroy() end) end
-    end)
+    if self.Gui then pcall(function() self.Gui:Destroy() end) end
     if self._globalKey and _G[self._globalKey] == self then _G[self._globalKey] = nil end
     if AxelUI._activeWindow == self then AxelUI._activeWindow = nil end
     return true
@@ -3477,12 +3517,16 @@ function AxelUI.new(options)
         ShowResizeGrip = options.ShowResizeGrip == true,
         GlassEnabled = type(options.Glass) == "boolean" and options.Glass or glassOptions.Enabled == true,
         GlassTransparency = math.clamp(tonumber(glassOptions.Transparency or options.GlassTransparency) or 0.22, 0, 0.45),
-        AnimatedBorder = options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false,
+        AnimateAccents = options.AnimateAccents == true or (options.AnimateAccents ~= false and not LOW_END_TOUCH_CLIENT),
+        AnimateOpenClose = options.AnimateOpenClose == true or (options.AnimateOpenClose ~= false and not LOW_END_TOUCH_CLIENT),
+        AnimatedBorder = options.AnimatedBorder == true or (options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false and not LOW_END_TOUCH_CLIENT),
         BorderAnimationDuration = math.clamp(tonumber(glassOptions.AnimationDuration or options.BorderAnimationDuration) or 3.2, 0.8, 15),
-        TabAnimation = options.TabAnimation ~= false,
+        TabAnimation = options.TabAnimation == true or (options.TabAnimation ~= false and not LOW_END_TOUCH_CLIENT),
         TabAnimationDuration = math.clamp(tonumber(options.TabAnimationDuration) or 0.2, 0.08, 0.7),
         TabSlideOffset = math.clamp(tonumber(options.TabSlideOffset) or 18, 4, 48),
         _flags = {},
+        _accentTweens = {},
+        _glintTweens = {},
     }, AxelUI)
     ACTIVE_FONT = options.Font
     ACTIVE_ASSET_FOLDER = self.AssetFolder
@@ -3491,7 +3535,7 @@ function AxelUI.new(options)
     _G[globalKey] = self
     AxelUI._activeWindow = self
 
-    self.Window = new("CanvasGroup", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = self.DesktopSize, ClipsDescendants = true }, self.Gui)
+    self.Window = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = self.DesktopSize, ClipsDescendants = true }, self.Gui)
     corner(self.Window, 18)
     local glitterLayer = new("Frame", { Name = "AxelGlitterLayer", BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 2 }, self.Window)
     self.GlitterLayer = glitterLayer
@@ -3502,19 +3546,23 @@ function AxelUI.new(options)
         {0.88, 0.68, 2}, {0.37, 0.52, 2}, {0.64, 0.9, 2}, {0.04, 0.87, 2},
     }
     for index, point in ipairs(glitterPoints) do
-        local glint = new("Frame", {
-            Name = "AxelGlint",
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundColor3 = self.Theme.Accent2,
-            BackgroundTransparency = 0.92,
-            BorderSizePixel = 0,
-            Position = UDim2.fromScale(point[1], point[2]),
-            Rotation = index % 2 == 0 and 45 or 0,
-            Size = UDim2.fromOffset(point[3], point[3]),
-            ZIndex = 3,
-        }, glitterLayer)
-        corner(glint, point[3])
-        TweenService:Create(glint, TweenInfo.new(1.6 + (index % 5) * 0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { BackgroundTransparency = 0.68 }):Play()
+        if self.AnimateAccents then
+            local glint = new("Frame", {
+                Name = "AxelGlint",
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = self.Theme.Accent2,
+                BackgroundTransparency = 0.92,
+                BorderSizePixel = 0,
+                Position = UDim2.fromScale(point[1], point[2]),
+                Rotation = index % 2 == 0 and 45 or 0,
+                Size = UDim2.fromOffset(point[3], point[3]),
+                ZIndex = 3,
+            }, glitterLayer)
+            corner(glint, point[3])
+            local glintTween = TweenService:Create(glint, TweenInfo.new(1.6 + (index % 5) * 0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { BackgroundTransparency = 0.68 })
+            table.insert(self._glintTweens, glintTween)
+            if self._open then glintTween:Play() end
+        end
     end
     self.GlowStroke = stroke(self.Window, self.Theme.Accent2, 0.38, 1.35)
     self.EdgeGradient = new("UIGradient", {
@@ -3534,7 +3582,7 @@ function AxelUI.new(options)
         }),
         Offset = Vector2.new(-1, 0),
     }, self.GlowStroke)
-    if self.AnimatedBorder then
+    if self.AnimatedBorder and self.AnimateAccents then
         local edgeInfo = TweenInfo.new(self.BorderAnimationDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false)
         local edgeOk, edgeTween = pcall(function()
             return TweenService:Create(self.EdgeGradient, edgeInfo, { Offset = Vector2.new(1, 0) })
@@ -3584,7 +3632,7 @@ function AxelUI.new(options)
         ZIndex = 6,
     }, header)
     self.DragHandle = dragHandle
-    local logoHolder = new("CanvasGroup", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.fromOffset(36, 36), Position = UDim2.fromOffset(16, 15), ClipsDescendants = true }, header)
+    local logoHolder = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.fromOffset(36, 36), Position = UDim2.fromOffset(16, 15), ClipsDescendants = true }, header)
     corner(logoHolder, 10)
     local logoScale = math.clamp(tonumber(options.LogoScale) or 1, 0.65, 1.4)
     local logoSize = math.min(30 * logoScale, 32)
@@ -3966,6 +4014,7 @@ function AxelUI.new(options)
 
     if self.StartMinimized then
         self._open = false
+        setAccentAnimations(self, false)
         self.Window.Visible = false
         self.RestoreButton.Visible = true
         self.RestoreButton.BackgroundTransparency = 0.08
@@ -3991,7 +4040,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 6.98
+AxelUI.Version = 7.0
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
