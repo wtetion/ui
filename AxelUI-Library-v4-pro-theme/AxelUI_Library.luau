@@ -1,24 +1,11 @@
---[=[
-    AxelUI Library
-    A small, dependency-free Roblox/Luau UI library for executor scripts.
-
-    Features
-      * Clean font fallback (custom FontFace can be supplied)
-      * Lucide-style image icons with a text fallback
-      * Loading animation and animated window open
-      * Press/hover animations for controls
-      * Tabs, badges, live status text and status pills
-      * Search box in the top bar
-      * Descriptions on sections and controls
-      * Toggle, button, slider, dropdown, input, keybind, label and status
-      * Notification stack, secret toggle keybind and a touch-friendly floating button
-      * Responsive desktop/mobile two-column layout
-      * Theme switching, local/asset backgrounds and JSON config persistence
-      * Oxide-style compatibility aliases: CreateWindow, AddSubTab and AddMultiDropdown
-      * Unload() removes the window and every tracked connection
-
-    Quick start is included in AxelUI_Library_Example.luau.
-]=]
+-- AxelUI Library
+-- A small, dependency-free Roblox/Luau UI library for executor scripts.
+-- Features: font fallback, Lucide-style icons with text fallback, animated
+-- window, hover/press effects, tabs, status cards, search, descriptions,
+-- toggles, buttons, sliders, dropdowns, inputs, keybinds, labels and notifications.
+-- Includes responsive desktop/mobile layout, theme and config support,
+-- Oxide-compatible aliases, and Unload() cleanup for tracked connections.
+-- Quick start is included in AxelUI_Library_Example.luau.
 
 local AxelUI = {}
 AxelUI.__index = AxelUI
@@ -2628,7 +2615,7 @@ function AxelUI.SectionMethods:AddToggle(data)
     local function dispatchToggleCallback()
         local callback = data.Callback or data.callback
         if type(callback) ~= "function" then return end
-        callbackRevision += 1
+        callbackRevision = callbackRevision + 1
         if callbackScheduled or callbackRunning then return end
         callbackScheduled = true
         -- Let the input event and the toggle's visual state settle first. A
@@ -3503,7 +3490,7 @@ function AxelUI.SectionMethods:AddProfileCard(data)
         local username = tostring(values.Username or values.UserName or values.Name or "player")
         if username:sub(1, 1) ~= "@" then username = "@" .. username end
         local userId = values.UserId or values.AccountId
-        if userId ~= nil then username ..= " · ID: " .. tostring(userId) end
+        if userId ~= nil then username = username .. " · ID: " .. tostring(userId) end
         local age = values.AccountAge or values.Age
         local ageText = age == nil and "Account Age: --" or "Account Age: " .. tostring(age) .. (type(age) == "number" and " days" or "")
         nameLabel.Text = tostring(displayName)
@@ -4266,7 +4253,7 @@ function AxelUI.new(options)
     self._fpsLastSample = os.clock()
     connect(self, RunService.RenderStepped, function()
         if self._destroyed then return end
-        self._fpsFrames += 1
+        self._fpsFrames = self._fpsFrames + 1
         local now = os.clock()
         local elapsed = now - self._fpsLastSample
         if elapsed >= 0.5 then
@@ -4422,7 +4409,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 7.8
+AxelUI.Version = 7.9
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
