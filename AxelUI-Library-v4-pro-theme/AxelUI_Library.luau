@@ -707,7 +707,7 @@ local function keyName(value)
     return text:gsub("^Enum%.[^.]+%.", "")
 end
 
-local function placePopup(popup, anchor, width, height, preferBelow)
+local function placePopup(popup, anchor, width, height, preferBelow, preferSide)
     if not popup or not anchor then return end
     local viewport = Vector2.new(1280, 720)
     pcall(function()
@@ -715,6 +715,27 @@ local function placePopup(popup, anchor, width, height, preferBelow)
     end)
     local anchorPosition = anchor.AbsolutePosition
     local anchorSize = anchor.AbsoluteSize
+    if preferSide then
+        local fittedHeight = math.min(height, math.max(1, viewport.Y - 16))
+        local right = anchorPosition.X + anchorSize.X + 8
+        local left = anchorPosition.X - width - 8
+        local sideX
+        if right + width <= viewport.X - 8 then
+            sideX = right
+        elseif left >= 8 then
+            sideX = left
+        end
+        if sideX then
+            local sideY = math.clamp(
+                anchorPosition.Y + (anchorSize.Y - fittedHeight) * 0.5,
+                8,
+                math.max(8, viewport.Y - fittedHeight - 8)
+            )
+            popup.Size = UDim2.fromOffset(width, fittedHeight)
+            popup.Position = UDim2.fromOffset(sideX, sideY)
+            return
+        end
+    end
     local x = math.clamp(anchorPosition.X, 8, math.max(8, viewport.X - width - 8))
     local below = anchorPosition.Y + anchorSize.Y + 4
     local availableBelow = viewport.Y - below - 8
@@ -872,6 +893,7 @@ end
 
 local function setAccentAnimations(self, enabled)
     local shouldRun = enabled == true and self.AnimateAccents == true and self._open == true
+    local shouldRunBorder = enabled == true and self.AnimatedBorder == true and self._open == true
     local function setTweenState(animation, play)
         if not animation then return end
         pcall(function()
@@ -883,7 +905,7 @@ local function setAccentAnimations(self, enabled)
         end)
     end
 
-    setTweenState(self._edgeTween, shouldRun)
+    setTweenState(self._edgeTween, shouldRunBorder)
     for _, animation in ipairs(self._glintTweens or {}) do
         setTweenState(animation, shouldRun)
     end
@@ -896,16 +918,18 @@ local function setFpsSampling(self, enabled)
     if enabled then
         if self._fpsConnection or self._destroyed then return end
         self._fpsFrames = 0
-        self._fpsLastSample = os.clock()
-        self._fpsConnection = RunService.RenderStepped:Connect(function()
-            if self._destroyed or not self._open or not self.Window or not self.Window.Visible then return end
+        self._fpsElapsed = 0
+        self._fpsConnection = RunService.RenderStepped:Connect(function(deltaTime)
+            local windowVisible = self._open and self.Window and self.Window.Visible
+            local restoreVisible = self.RestoreButton and self.RestoreButton.Visible
+            if self._destroyed or not (windowVisible or restoreVisible) then return end
             self._fpsFrames = self._fpsFrames + 1
-            local now = os.clock()
-            local elapsed = now - self._fpsLastSample
-            if elapsed >= 0.5 then
+            self._fpsElapsed = self._fpsElapsed + math.max(tonumber(deltaTime) or 0, 0)
+            if self._fpsElapsed >= 1 then
+                local elapsed = self._fpsElapsed
                 local fps = math.floor(self._fpsFrames / elapsed + 0.5)
                 self._fpsFrames = 0
-                self._fpsLastSample = now
+                self._fpsElapsed = 0
                 if self.FpsValue then self.FpsValue.Text = tostring(fps) end
                 if self.RestoreFpsText then self.RestoreFpsText.Text = tostring(fps) .. " FPS" end
                 if self.RestorePingText then
@@ -923,7 +947,7 @@ local function setFpsSampling(self, enabled)
     end
 
     self._fpsFrames = 0
-    self._fpsLastSample = os.clock()
+    self._fpsElapsed = 0
     local connection = self._fpsConnection
     self._fpsConnection = nil
     if connection then pcall(function() connection:Disconnect() end) end
@@ -1260,7 +1284,8 @@ function AxelUI:SetOpen(visible)
     if self._destroyed or not self.Window then return end
     visible = visible == true
     self._open = visible
-    setFpsSampling(self, visible)
+    -- Keep sampling while minimized so the floating restore card stays live.
+    setFpsSampling(self, true)
     if visible then
         self.Window.Visible = true
         self.Window.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
@@ -2801,10 +2826,14 @@ function AxelUI.SectionMethods:AddToggle(data)
         local strokeTransparency = self.Value and 0.04 or 0.28
         local strokeThickness = self.Value and 1.5 or 1
         if self.Window.AnimateControls then
-            -- One short tween per input change; no loop or per-frame callback.
-            tween(knob, { Position = knobPosition, BackgroundColor3 = self.Window.Theme.Text }, 0.13, Enum.EasingStyle.Quint)
-            tween(track, { BackgroundColor3 = trackColor }, 0.13, Enum.EasingStyle.Quint)
-            tween(trackStroke, { Color = strokeColor, Transparency = strokeTransparency, Thickness = strokeThickness }, 0.13, Enum.EasingStyle.Quint)
+            -- Keep the main state motion to one short tween. The track and
+            -- border update directly, so repeated input does not stack three
+            -- simultaneous tweens on low-end devices.
+            tween(knob, { Position = knobPosition }, 0.13, Enum.EasingStyle.Quint)
+            track.BackgroundColor3 = trackColor
+            trackStroke.Color = strokeColor
+            trackStroke.Transparency = strokeTransparency
+            trackStroke.Thickness = strokeThickness
         else
             knob.Position = knobPosition
             knob.BackgroundColor3 = self.Window.Theme.Text
@@ -3016,7 +3045,7 @@ function AxelUI.SectionMethods:AddDropdown(data)
             ZIndex = 50,
         }, self.Window.Gui)
         corner(popup, 7); stroke(popup, self.Window.Theme.Accent, 0.08, 1.15); pad(popup, 3, 3, 3, 3)
-        placePopup(popup, selector, popupWidth, popupHeight, true)
+        placePopup(popup, selector, popupWidth, popupHeight, true, not self.Window.IsMobile)
         animatePopupOpen(popup, selector)
         setSelectorOpen(true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
@@ -3212,7 +3241,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
             ZIndex = 60,
         }, self.Window.Gui)
         corner(popup, 7); stroke(popup, self.Window.Theme.Accent, 0.08, 1.15); pad(popup, 3, 3, 3, 3)
-        placePopup(popup, selector, popupWidth, popupHeight, true)
+        placePopup(popup, selector, popupWidth, popupHeight, true, not self.Window.IsMobile)
         animatePopupOpen(popup, selector)
         setSelectorOpen(true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
@@ -4034,7 +4063,8 @@ function AxelUI.new(options)
         AnimateControls = options.AnimateControls == true,
         AnimateAccents = options.AnimateAccents == true or (options.AnimateAccents ~= false and not LOW_END_TOUCH_CLIENT),
         AnimateOpenClose = options.AnimateOpenClose == true or (options.AnimateOpenClose ~= false and not LOW_END_TOUCH_CLIENT),
-        AnimatedBorder = options.AnimatedBorder == true or (options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false and not LOW_END_TOUCH_CLIENT),
+        AnimatedBorder = options.AnimatedBorder == true or glassOptions.AnimatedBorder == true
+            or (options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false and not LOW_END_TOUCH_CLIENT),
         BorderAnimationDuration = math.clamp(tonumber(glassOptions.AnimationDuration or options.BorderAnimationDuration) or 3.2, 0.8, 15),
         TabAnimation = options.TabAnimation == true or (options.TabAnimation ~= false and not LOW_END_TOUCH_CLIENT),
         TabAnimationDuration = math.clamp(tonumber(options.TabAnimationDuration) or 0.2, 0.08, 0.7),
@@ -4098,12 +4128,15 @@ function AxelUI.new(options)
         }),
         Offset = Vector2.new(-1, 0),
     }, self.GlowStroke)
-    if self.AnimatedBorder and self.AnimateAccents then
+    if self.AnimatedBorder then
         local edgeInfo = TweenInfo.new(self.BorderAnimationDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false)
         local edgeOk, edgeTween = pcall(function()
             return TweenService:Create(self.EdgeGradient, edgeInfo, { Offset = Vector2.new(1, 0) })
         end)
-        if edgeOk and edgeTween then self._edgeTween = edgeTween; edgeTween:Play() end
+        if edgeOk and edgeTween then
+            self._edgeTween = edgeTween
+            if self._open then edgeTween:Play() end
+        end
     end
     connect(self, self.Window.MouseEnter, function() tween(self.GlowStroke, { Transparency = 0.025, Thickness = 2 }, 0.18) end)
     connect(self, self.Window.MouseLeave, function() tween(self.GlowStroke, { Transparency = 0.24, Thickness = 1.45 }, 0.2) end)
@@ -4548,7 +4581,8 @@ function AxelUI.new(options)
         if restoreStroke then restoreStroke.Transparency = 0.04 end
         tween(self.RestoreScale, { Scale = 1 }, 0.34, Enum.EasingStyle.Back)
     end
-    setFpsSampling(self, self._open)
+    -- The sampler also feeds the floating restore card in minimized mode.
+    setFpsSampling(self, true)
 
     function self:CreateTab(data) return self:AddTab(data) end
     function self:WindowToggle() return self:Toggle() end
@@ -4566,8 +4600,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.15
-AxelUI.BuildId = "8.15.0-event-motion-idle-fps"
+AxelUI.Version = 8.17
+AxelUI.BuildId = "8.17.0-mini-metrics-side-popup-edge"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
