@@ -2770,39 +2770,6 @@ function AxelUI.SectionMethods:AddToggle(data)
     local knob = new("Frame", { BackgroundColor3 = self.Window.Theme.Text, Size = UDim2.fromOffset(16, 16), Position = UDim2.fromOffset(3, 3), ZIndex = 9 }, track)
     corner(knob, 8)
     local handle = { Value = data.Default == true, Row = row, Window = self.Window }
-    local callbackRevision = 0
-    local callbackScheduled = false
-    local callbackRunning = false
-    local function dispatchToggleCallback()
-        local callback = data.Callback or data.callback
-        if type(callback) ~= "function" then return end
-        callbackRevision = callbackRevision + 1
-        if callbackScheduled or callbackRunning then return end
-        callbackScheduled = true
-        -- Let the input event and the toggle's visual state settle first.
-        -- Defer the feature callback until the current UI/input frame has
-        -- completed, while keeping a per-toggle queue to collapse duplicate
-        -- touch/mouse signals and prevent overlapping copies of the callback.
-        task.defer(function()
-            RunService.Heartbeat:Wait()
-            callbackScheduled = false
-            if not self.Window or self.Window._destroyed then return end
-            local dispatchedRevision = callbackRevision
-            local callbackValue = handle.Value
-            callbackRunning = true
-            task.defer(function()
-                if not self.Window or self.Window._destroyed then
-                    callbackRunning = false
-                    return
-                end
-                pcall(callback, callbackValue)
-                callbackRunning = false
-                if callbackRevision ~= dispatchedRevision then
-                    dispatchToggleCallback()
-                end
-            end)
-        end)
-    end
     function handle:Set(value, silent)
         self.Value = value == true
         local x = self.Value and 23 or 3
@@ -2811,7 +2778,7 @@ function AxelUI.SectionMethods:AddToggle(data)
         local strokeColor = self.Value and self.Window.Theme.Accent2 or self.Window.Theme.Border
         local strokeTransparency = self.Value and 0.04 or 0.28
         local strokeThickness = self.Value and 1.5 or 1
-        if self.Window.ReduceEffects and not self.Window.AnimateControls then
+        if self.Window.ReduceEffects then
             knob.Position = knobPosition
             knob.BackgroundColor3 = self.Window.Theme.Text
             track.BackgroundColor3 = trackColor
@@ -2823,7 +2790,17 @@ function AxelUI.SectionMethods:AddToggle(data)
             tween(track, { BackgroundColor3 = trackColor }, 0.16)
             tween(trackStroke, { Color = strokeColor, Transparency = strokeTransparency, Thickness = strokeThickness }, 0.16)
         end
-        if not silent then dispatchToggleCallback() end
+        if not silent and type(data.Callback or data.callback) == "function" then
+            local callback = data.Callback or data.callback
+            local callbackValue = self.Value
+            task.spawn(function()
+                -- Match the v7.2 toggle path: yield once after input, then run
+                -- the callback independently of the UI event thread.
+                task.wait()
+                if self.Window and self.Window._destroyed then return end
+                pcall(callback, callbackValue)
+            end)
+        end
     end
     function handle:Get() return self.Value end
     local function activateToggle()
@@ -4584,7 +4561,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.3
+AxelUI.Version = 8.4
+AxelUI.BuildId = "8.4.0-v72-toggle-dispatch"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
