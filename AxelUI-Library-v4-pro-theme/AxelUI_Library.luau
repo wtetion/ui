@@ -2825,10 +2825,9 @@ function AxelUI.SectionMethods:AddToggle(data)
         local strokeColor = self.Value and self.Window.Theme.Accent2 or self.Window.Theme.Border
         local strokeTransparency = self.Value and 0.04 or 0.28
         local strokeThickness = self.Value and 1.5 or 1
-        if self.Window.AnimateControls then
-            -- Keep the main state motion to one short tween. The track and
-            -- border update directly, so repeated input does not stack three
-            -- simultaneous tweens on low-end devices.
+        if self.Window.AnimateControls and not self.Window.ReduceEffects then
+            -- Reduced-effects mode updates immediately, as in the known-good
+            -- v7.2 toggle path. Full-effects mode keeps one short knob tween.
             tween(knob, { Position = knobPosition }, 0.13, Enum.EasingStyle.Quint)
             track.BackgroundColor3 = trackColor
             trackStroke.Color = strokeColor
@@ -2855,8 +2854,12 @@ function AxelUI.SectionMethods:AddToggle(data)
         end
     end
     function handle:Get() return self.Value end
+    local lastActivationAt
     local function activateToggle()
         if self.Window and self.Window._destroyed then return end
+        local now = os.clock()
+        if lastActivationAt and now - lastActivationAt < 0.12 then return end
+        lastActivationAt = now
         handle:Set(not handle.Value)
     end
     local toggleConnection
@@ -4600,8 +4603,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.17
-AxelUI.BuildId = "8.17.0-mini-metrics-side-popup-edge"
+AxelUI.Version = 8.18
+AxelUI.BuildId = "8.18.0-toggle-input-guard"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
