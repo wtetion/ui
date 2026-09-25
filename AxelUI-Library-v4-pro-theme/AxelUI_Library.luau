@@ -2779,16 +2779,18 @@ function AxelUI.SectionMethods:AddToggle(data)
         callbackRevision = callbackRevision + 1
         if callbackScheduled or callbackRunning then return end
         callbackScheduled = true
-        -- Let the input event and the toggle's visual state settle first. A
-        -- short per-toggle queue also collapses duplicate touch/mouse signals
-        -- so a burst cannot start overlapping copies of the same feature.
-        task.delay(0.06, function()
+        -- Let the input event and the toggle's visual state settle first.
+        -- Defer the feature callback until the current UI/input frame has
+        -- completed, while keeping a per-toggle queue to collapse duplicate
+        -- touch/mouse signals and prevent overlapping copies of the callback.
+        task.defer(function()
+            RunService.Heartbeat:Wait()
             callbackScheduled = false
             if not self.Window or self.Window._destroyed then return end
             local dispatchedRevision = callbackRevision
             local callbackValue = handle.Value
             callbackRunning = true
-            task.spawn(function()
+            task.defer(function()
                 if not self.Window or self.Window._destroyed then
                     callbackRunning = false
                     return
@@ -4582,7 +4584,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.2
+AxelUI.Version = 8.3
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
