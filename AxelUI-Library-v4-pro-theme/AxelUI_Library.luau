@@ -4674,8 +4674,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.21
-AxelUI.BuildId = "8.21.0-toggle-stage-trace"
+AxelUI.Version = 8.22
+AxelUI.BuildId = "8.22.0-sliced-evidence-scan"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
