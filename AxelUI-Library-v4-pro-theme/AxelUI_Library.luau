@@ -4674,8 +4674,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.20
-AxelUI.BuildId = "8.20.0-toggle-motion-pause"
+AxelUI.Version = 8.21
+AxelUI.BuildId = "8.21.0-toggle-stage-trace"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
