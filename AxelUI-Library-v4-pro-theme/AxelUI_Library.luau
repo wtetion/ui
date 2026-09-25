@@ -2929,8 +2929,16 @@ function AxelUI.SectionMethods:AddToggle(data)
                 tostring(nextValue)
             ))
         end
+        local stateApplyStartedAt = trace and os.clock() or nil
         handle:Set(nextValue, false, trace)
-        if trace then warn(string.format("[AxelUI trace] state applied flag=%s value=%s", tostring(trace.flag), tostring(handle.Value))) end
+        if trace then
+            warn(string.format(
+                "[AxelUI trace] state applied flag=%s value=%s setMs=%.1f",
+                tostring(trace.flag),
+                tostring(handle.Value),
+                (os.clock() - stateApplyStartedAt) * 1000
+            ))
+        end
     end
     local toggleConnection
     local activatedOk, activatedSignal = pcall(function() return row.Activated end)
@@ -4674,8 +4682,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.22
-AxelUI.BuildId = "8.22.0-sliced-evidence-scan"
+AxelUI.Version = 8.23
+AxelUI.BuildId = "8.23.0-toggle-frame-budget"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
