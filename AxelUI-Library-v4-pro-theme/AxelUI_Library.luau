@@ -784,47 +784,9 @@ end
 
 local function pressAnimation(self, button, scaleObject, reducedHoverStyle)
     if not button then return end
-    if self.ReduceEffects then
-        if not self.HoverEffects or type(reducedHoverStyle) ~= "table" then return end
-        local originalColor = button.BackgroundColor3
-        local originalTransparency = button.BackgroundTransparency
-        local buttonStroke = button:FindFirstChildOfClass("UIStroke")
-        local originalStrokeColor = buttonStroke and buttonStroke.Color
-        local originalStrokeTransparency = buttonStroke and buttonStroke.Transparency
-        local originalStrokeThickness = buttonStroke and buttonStroke.Thickness
-        local hovered = false
-        local pressed = false
-        local function renderState()
-            if not button.Parent then return end
-            local active = hovered or pressed
-            tween(button, {
-                BackgroundColor3 = active and (reducedHoverStyle.Color or self.Theme.ElementHover) or originalColor,
-                BackgroundTransparency = active and (reducedHoverStyle.Transparency or 0) or originalTransparency,
-            }, active and 0.1 or 0.15)
-            if buttonStroke then
-                tween(buttonStroke, {
-                    Color = active and (reducedHoverStyle.StrokeColor or self.Theme.Accent2) or originalStrokeColor,
-                    Transparency = active and (reducedHoverStyle.StrokeTransparency or 0.05) or originalStrokeTransparency,
-                    Thickness = active and (reducedHoverStyle.StrokeThickness or 1.6) or originalStrokeThickness,
-                }, active and 0.1 or 0.15)
-            end
-        end
-        connect(self, button.MouseEnter, function() hovered = true; renderState() end)
-        connect(self, button.MouseLeave, function() hovered = false; renderState() end)
-        connect(self, button.InputBegan, function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                pressed = true
-                renderState()
-            end
-        end)
-        connect(self, button.InputEnded, function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                pressed = false
-                renderState()
-            end
-        end)
-        return
-    end
+    -- Match v7.2 on reduced-effects clients: skip decorative input hooks and
+    -- tweens entirely. This keeps low-end/touch buttons cheap during presses.
+    if self.ReduceEffects then return end
     local scale = scaleObject or new("UIScale", { Scale = 1 }, button)
     connect(self, button.MouseEnter, function()
         tween(scale, { Scale = 1.025 }, 0.13)
@@ -1098,6 +1060,17 @@ function AxelUI:_makeRow(parent, data, height)
             tween(rowStroke, { Transparency = 0.4 }, 0.18)
             tween(hoverGlass, { BackgroundTransparency = 1 }, 0.18)
         end)
+    elseif self.HoverEffects then
+        -- Lightweight hover feedback: avoid per-row gradient/glass layers and
+        -- tween creation, but keep a clear state change for mouse users.
+        connect(self, row.MouseEnter, function()
+            row.BackgroundColor3 = self.Theme.ElementHover
+            rowStroke.Transparency = 0.08
+        end)
+        connect(self, row.MouseLeave, function()
+            row.BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2
+            rowStroke.Transparency = 0.4
+        end)
     end
     self:_registerSearch(row, (data.Name or "") .. " " .. (data.Description or ""), title)
     return row, inner, title, descriptionLabel
@@ -1313,8 +1286,8 @@ function AxelUI:SetToggleKeybind(key)
     self.ToggleKeybind = key or Enum.KeyCode.RightControl
 end
 
--- Glass is limited to the shell and the empty page backdrop. Header, sidebar,
--- cards and controls remain solid so their text and states stay readable.
+-- Glass tints the window shell and page backdrop; header, sidebar, cards and
+-- controls stay solid so their text and states remain readable.
 function AxelUI:SetGlass(value, transparency)
     if type(value) == "table" then
         if value.Enabled ~= nil then self.GlassEnabled = value.Enabled == true end
@@ -1329,11 +1302,11 @@ function AxelUI:SetGlass(value, transparency)
         self.Window.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
     end
     if self.PageHolder then
-        -- Window carries the single tinted glass layer. Keeping PageHolder
-        -- and its corner caps transparent prevents transparency compounding.
-        self.PageHolder.BackgroundTransparency = self.GlassEnabled and 1 or 0
+        -- Match the v7.2 dark-glass treatment on the page itself; a fully
+        -- transparent holder lets bright map scenery wash through the UI.
+        self.PageHolder.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
         for _, cap in ipairs(self.PageCornerCaps or {}) do
-            cap.BackgroundTransparency = self.GlassEnabled and 1 or 0
+            cap.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
         end
     end
     return self
@@ -4277,7 +4250,7 @@ function AxelUI.new(options)
     self._profileAvatarRetries = avatarRetries
     self.Footer = footer
 
-    self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and 1 or 0, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 58), Size = UDim2.new(1, -170, 1, -58), ZIndex = 1, ClipsDescendants = true }, self.Window)
+    self.PageHolder = new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromOffset(170, 58), Size = UDim2.new(1, -170, 1, -58), ZIndex = 1, ClipsDescendants = true }, self.Window)
     corner(self.PageHolder, 18)
     -- Keep the subtle glitter in the glass backdrop only. Reparenting it below
     -- the page content prevents sparkles from appearing over opaque controls.
@@ -4287,9 +4260,9 @@ function AxelUI.new(options)
         if glint.Name == "AxelGlint" then glint.ZIndex = 1 end
     end
     self.PageCornerCaps = {
-        new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and 1 or 0, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
-        new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and 1 or 0, BorderSizePixel = 0, Position = UDim2.new(1, -18, 0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
-        new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and 1 or 0, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -18), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.new(1, -18, 0, 0), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
+        new("Frame", { BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -18), Size = UDim2.fromOffset(18, 18), ZIndex = 2 }, self.PageHolder),
     }
     local tabHeader = new("Frame", { BackgroundColor3 = self.Theme.Surface, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 46) }, self.PageHolder)
     corner(tabHeader, 12)
@@ -4563,8 +4536,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.5
-AxelUI.BuildId = "8.5.0-single-layer-glass"
+AxelUI.Version = 8.13
+AxelUI.BuildId = "8.13.0-v72-glass-lite-ui"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
