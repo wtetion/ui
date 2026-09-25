@@ -784,9 +784,47 @@ end
 
 local function pressAnimation(self, button, scaleObject, reducedHoverStyle)
     if not button then return end
-    -- Match v7.2 on reduced-effects clients: skip decorative input hooks and
-    -- tweens entirely. This keeps low-end/touch buttons cheap during presses.
-    if self.ReduceEffects then return end
+    if self.ReduceEffects then
+        if not self.HoverEffects or type(reducedHoverStyle) ~= "table" then return end
+        local originalColor = button.BackgroundColor3
+        local originalTransparency = button.BackgroundTransparency
+        local buttonStroke = button:FindFirstChildOfClass("UIStroke")
+        local originalStrokeColor = buttonStroke and buttonStroke.Color
+        local originalStrokeTransparency = buttonStroke and buttonStroke.Transparency
+        local originalStrokeThickness = buttonStroke and buttonStroke.Thickness
+        local hovered = false
+        local pressed = false
+        local function renderState()
+            if not button.Parent then return end
+            local active = hovered or pressed
+            tween(button, {
+                BackgroundColor3 = active and (reducedHoverStyle.Color or self.Theme.ElementHover) or originalColor,
+                BackgroundTransparency = active and (reducedHoverStyle.Transparency or 0) or originalTransparency,
+            }, active and 0.1 or 0.15)
+            if buttonStroke then
+                tween(buttonStroke, {
+                    Color = active and (reducedHoverStyle.StrokeColor or self.Theme.Accent2) or originalStrokeColor,
+                    Transparency = active and (reducedHoverStyle.StrokeTransparency or 0.05) or originalStrokeTransparency,
+                    Thickness = active and (reducedHoverStyle.StrokeThickness or 1.6) or originalStrokeThickness,
+                }, active and 0.1 or 0.15)
+            end
+        end
+        connect(self, button.MouseEnter, function() hovered = true; renderState() end)
+        connect(self, button.MouseLeave, function() hovered = false; renderState() end)
+        connect(self, button.InputBegan, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                pressed = true
+                renderState()
+            end
+        end)
+        connect(self, button.InputEnded, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                pressed = false
+                renderState()
+            end
+        end)
+        return
+    end
     local scale = scaleObject or new("UIScale", { Scale = 1 }, button)
     connect(self, button.MouseEnter, function()
         tween(scale, { Scale = 1.025 }, 0.13)
@@ -4525,8 +4563,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.6
-AxelUI.BuildId = "8.6.0-v72-reduced-effects"
+AxelUI.Version = 8.5
+AxelUI.BuildId = "8.5.0-single-layer-glass"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
