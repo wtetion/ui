@@ -922,6 +922,22 @@ local function setFpsSampling(self, enabled)
         self._fpsConnection = RunService.RenderStepped:Connect(function(deltaTime)
             local windowVisible = self._open and self.Window and self.Window.Visible
             local restoreVisible = self.RestoreButton and self.RestoreButton.Visible
+            local toggleTrace = self._toggleTrace
+            if toggleTrace and not toggleTrace.hitchReported then
+                local elapsedSinceToggle = os.clock() - toggleTrace.at
+                if elapsedSinceToggle <= 20 and (tonumber(deltaTime) or 0) >= 0.25 then
+                    toggleTrace.hitchReported = true
+                    warn(string.format(
+                        "[AxelUI trace] frame hitch flag=%s dt=%.3fs after=%.3fs callbackReturned=%s",
+                        tostring(toggleTrace.flag),
+                        tonumber(deltaTime) or 0,
+                        elapsedSinceToggle,
+                        tostring(toggleTrace.callbackReturned == true)
+                    ))
+                elseif elapsedSinceToggle > 20 then
+                    self._toggleTrace = nil
+                end
+            end
             if self._destroyed or not (windowVisible or restoreVisible) then return end
             self._fpsFrames = self._fpsFrames + 1
             self._fpsElapsed = self._fpsElapsed + math.max(tonumber(deltaTime) or 0, 0)
@@ -2817,7 +2833,12 @@ function AxelUI.SectionMethods:AddToggle(data)
     local knob = new("Frame", { BackgroundColor3 = self.Window.Theme.Text, Size = UDim2.fromOffset(16, 16), Position = UDim2.fromOffset(3, 3), ZIndex = 9 }, track)
     corner(knob, 8)
     local handle = { Value = data.Default == true, Row = row, Window = self.Window }
-    function handle:Set(value, silent)
+    local toggleName = tostring(data.Name or data.Title or data.Flag or "Toggle")
+    local normalizedToggleName = string.lower(toggleName)
+    local shouldTraceToggle = data.Flag == "steal_auto"
+        or data.Flag == "event_rift_trade"
+        or string.find(normalizedToggleName, "auto rift", 1, true) ~= nil
+    function handle:Set(value, silent, traceInfo)
         self.Value = value == true
         local x = self.Value and 23 or 3
         local knobPosition = UDim2.fromOffset(x, 3)
@@ -2844,12 +2865,29 @@ function AxelUI.SectionMethods:AddToggle(data)
         if not silent and type(data.Callback or data.callback) == "function" then
             local callback = data.Callback or data.callback
             local callbackValue = self.Value
+            local trace = type(traceInfo) == "table" and traceInfo or nil
             task.spawn(function()
                 -- Match the v7.2 toggle path: yield once after input, then run
                 -- the callback independently of the UI event thread.
                 task.wait()
                 if self.Window and self.Window._destroyed then return end
-                pcall(callback, callbackValue)
+                if trace then
+                    warn(string.format("[AxelUI trace] callback start flag=%s value=%s", tostring(trace.flag), tostring(callbackValue)))
+                end
+                local callbackStartedAt = os.clock()
+                local callbackOk, callbackError = pcall(callback, callbackValue)
+                if trace then
+                    local callbackElapsed = os.clock() - callbackStartedAt
+                    trace.callbackReturned = true
+                    trace.callbackElapsed = callbackElapsed
+                    warn(string.format(
+                        "[AxelUI trace] callback return flag=%s ms=%.1f ok=%s%s",
+                        tostring(trace.flag),
+                        callbackElapsed * 1000,
+                        tostring(callbackOk),
+                        callbackOk and "" or (" error=" .. tostring(callbackError))
+                    ))
+                end
             end)
         end
     end
@@ -2860,7 +2898,20 @@ function AxelUI.SectionMethods:AddToggle(data)
         local now = os.clock()
         if lastActivationAt and now - lastActivationAt < 0.12 then return end
         lastActivationAt = now
-        handle:Set(not handle.Value)
+        local nextValue = not handle.Value
+        local trace
+        if shouldTraceToggle then
+            trace = { at = now, flag = tostring(data.Flag or toggleName), name = toggleName, callbackReturned = false }
+            self.Window._toggleTrace = trace
+            warn(string.format(
+                "[AxelUI trace] input flag=%s value=%s->%s",
+                tostring(trace.flag),
+                tostring(handle.Value),
+                tostring(nextValue)
+            ))
+        end
+        handle:Set(nextValue, false, trace)
+        if trace then warn(string.format("[AxelUI trace] state applied flag=%s value=%s", tostring(trace.flag), tostring(handle.Value))) end
     end
     local toggleConnection
     local activatedOk, activatedSignal = pcall(function() return row.Activated end)
@@ -4603,8 +4654,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.18
-AxelUI.BuildId = "8.18.0-toggle-input-guard"
+AxelUI.Version = 8.19
+AxelUI.BuildId = "8.19.0-toggle-frame-trace"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
