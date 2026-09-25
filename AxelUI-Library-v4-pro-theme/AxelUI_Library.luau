@@ -892,6 +892,43 @@ local function setAccentAnimations(self, enabled)
     end
 end
 
+local function setFpsSampling(self, enabled)
+    if enabled then
+        if self._fpsConnection or self._destroyed then return end
+        self._fpsFrames = 0
+        self._fpsLastSample = os.clock()
+        self._fpsConnection = RunService.RenderStepped:Connect(function()
+            if self._destroyed or not self._open or not self.Window or not self.Window.Visible then return end
+            self._fpsFrames = self._fpsFrames + 1
+            local now = os.clock()
+            local elapsed = now - self._fpsLastSample
+            if elapsed >= 0.5 then
+                local fps = math.floor(self._fpsFrames / elapsed + 0.5)
+                self._fpsFrames = 0
+                self._fpsLastSample = now
+                if self.FpsValue then self.FpsValue.Text = tostring(fps) end
+                if self.RestoreFpsText then self.RestoreFpsText.Text = tostring(fps) .. " FPS" end
+                if self.RestorePingText then
+                    local player = Players.LocalPlayer
+                    local pingOk, pingSeconds = pcall(function()
+                        return player and player:GetNetworkPing()
+                    end)
+                    self.RestorePingText.Text = pingOk and type(pingSeconds) == "number"
+                        and (tostring(math.max(0, math.floor(pingSeconds * 1000 + 0.5))) .. " ms")
+                        or "-- ms"
+                end
+            end
+        end)
+        return
+    end
+
+    self._fpsFrames = 0
+    self._fpsLastSample = os.clock()
+    local connection = self._fpsConnection
+    self._fpsConnection = nil
+    if connection then pcall(function() connection:Disconnect() end) end
+end
+
 local function setTextColor(instance, color)
     if instance then pcall(function() instance.TextColor3 = color end) end
 end
@@ -995,6 +1032,8 @@ function AxelUI:_makeRow(parent, data, height)
     }, parent)
     corner(row, 8)
     local rowStroke = stroke(row, data.Primary and self.Theme.Accent2 or self.Theme.Border, 0.4, 1)
+    local baseRowColor = data.Primary and self.Theme.Accent or self.Theme.Surface2
+    local hoverRowColor = data.Primary and self.Theme.Accent2 or self.Theme.Element:Lerp(self.Theme.Accent, 0.18)
     local hoverGlass
     if not self.ReduceEffects then
         new("UIGradient", {
@@ -1051,25 +1090,25 @@ function AxelUI:_makeRow(parent, data, height)
     })
     if not self.ReduceEffects then
         connect(self, row.MouseEnter, function()
-            tween(row, { BackgroundColor3 = self.Theme.ElementHover }, 0.12)
-            tween(rowStroke, { Transparency = 0.05 }, 0.12)
+            tween(row, { BackgroundColor3 = hoverRowColor }, 0.12)
+            tween(rowStroke, { Color = self.Theme.Accent2, Transparency = 0.06, Thickness = 1.35 }, 0.12)
             tween(hoverGlass, { BackgroundTransparency = 0.9 }, 0.12)
         end)
         connect(self, row.MouseLeave, function()
-            tween(row, { BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2 }, 0.18)
-            tween(rowStroke, { Transparency = 0.4 }, 0.18)
+            tween(row, { BackgroundColor3 = baseRowColor }, 0.18)
+            tween(rowStroke, { Color = data.Primary and self.Theme.Accent2 or self.Theme.Border, Transparency = 0.4, Thickness = 1 }, 0.18)
             tween(hoverGlass, { BackgroundTransparency = 1 }, 0.18)
         end)
     elseif self.HoverEffects then
-        -- Lightweight hover feedback: avoid per-row gradient/glass layers and
-        -- tween creation, but keep a clear state change for mouse users.
+        -- Keep hover motion event-driven and lightweight: reuse the row/stroke
+        -- instead of adding per-row gradients or animated overlay layers.
         connect(self, row.MouseEnter, function()
-            row.BackgroundColor3 = self.Theme.ElementHover
-            rowStroke.Transparency = 0.08
+            tween(row, { BackgroundColor3 = hoverRowColor }, 0.12)
+            tween(rowStroke, { Color = self.Theme.Accent2, Transparency = 0.08, Thickness = 1.3 }, 0.12)
         end)
         connect(self, row.MouseLeave, function()
-            row.BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2
-            rowStroke.Transparency = 0.4
+            tween(row, { BackgroundColor3 = baseRowColor }, 0.15)
+            tween(rowStroke, { Color = data.Primary and self.Theme.Accent2 or self.Theme.Border, Transparency = 0.4, Thickness = 1 }, 0.15)
         end)
     end
     self:_registerSearch(row, (data.Name or "") .. " " .. (data.Description or ""), title)
@@ -1221,6 +1260,7 @@ function AxelUI:SetOpen(visible)
     if self._destroyed or not self.Window then return end
     visible = visible == true
     self._open = visible
+    setFpsSampling(self, visible)
     if visible then
         self.Window.Visible = true
         self.Window.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
@@ -1901,10 +1941,16 @@ function AxelUI:AddTab(data)
 
     connect(self, button.MouseButton1Click, function() self:SelectTab(tab) end)
     connect(self, button.MouseEnter, function()
-        if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.24, Color = self.Theme.Accent2 }, 0.14) end
+        if self.ActiveTab ~= tab then
+            tween(button, { BackgroundColor3 = self.Theme.Surface:Lerp(self.Theme.Accent, 0.12) }, 0.14)
+            if tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.12, Color = self.Theme.Accent2, Thickness = 1.2 }, 0.14) end
+        end
     end)
     connect(self, button.MouseLeave, function()
-        if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.9, Color = self.Theme.Border }, 0.16) end
+        if self.ActiveTab ~= tab then
+            tween(button, { BackgroundColor3 = self.Theme.Surface }, 0.16)
+            if tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.62, Color = self.Theme.Border, Thickness = 1 }, 0.16) end
+        end
     end)
     addButtonGlass(self, button, 0)
     pressAnimation(self, button)
@@ -2128,8 +2174,8 @@ function AxelUI.TabMethods:AddPill(data)
     connect(self.Window, button.MouseButton1Click, function() self:SelectPill(pill) end)
     connect(self.Window, button.MouseEnter, function()
         if not pill.Active then
-            tween(pillStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.05 }, 0.13)
-            tween(button, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.13)
+            tween(pillStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.15 }, 0.13)
+            tween(button, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.14) }, 0.13)
         end
     end)
     connect(self.Window, button.MouseLeave, function()
@@ -2249,8 +2295,8 @@ local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, righ
     connect(self.Window, button.MouseButton1Click, function() self:SelectSubTab(subtab) end)
     connect(self.Window, button.MouseEnter, function()
         if not subtab.Active then
-            tween(subtabStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.05 }, 0.13)
-            tween(button, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.13)
+            tween(subtabStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.15 }, 0.13)
+            tween(button, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.14) }, 0.13)
         end
     end)
     connect(self.Window, button.MouseLeave, function()
@@ -2713,7 +2759,8 @@ function AxelUI.SectionMethods:AddActionBar(data)
         pressAnimation(self.Window, button)
         addButtonGlass(self.Window, button, 0)
         connect(self.Window, button.MouseEnter, function()
-            tween(button, { BackgroundColor3 = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.ElementHover }, 0.12)
+            local hoverColor = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.18)
+            tween(button, { BackgroundColor3 = hoverColor }, 0.12)
             tween(actionStroke, { Transparency = 0.02, Color = self.Window.Theme.Accent2 }, 0.12)
         end)
         connect(self.Window, button.MouseLeave, function()
@@ -2753,17 +2800,18 @@ function AxelUI.SectionMethods:AddToggle(data)
         local strokeColor = self.Value and self.Window.Theme.Accent2 or self.Window.Theme.Border
         local strokeTransparency = self.Value and 0.04 or 0.28
         local strokeThickness = self.Value and 1.5 or 1
-        if self.Window.ReduceEffects then
+        if self.Window.AnimateControls then
+            -- One short tween per input change; no loop or per-frame callback.
+            tween(knob, { Position = knobPosition, BackgroundColor3 = self.Window.Theme.Text }, 0.13, Enum.EasingStyle.Quint)
+            tween(track, { BackgroundColor3 = trackColor }, 0.13, Enum.EasingStyle.Quint)
+            tween(trackStroke, { Color = strokeColor, Transparency = strokeTransparency, Thickness = strokeThickness }, 0.13, Enum.EasingStyle.Quint)
+        else
             knob.Position = knobPosition
             knob.BackgroundColor3 = self.Window.Theme.Text
             track.BackgroundColor3 = trackColor
             trackStroke.Color = strokeColor
             trackStroke.Transparency = strokeTransparency
             trackStroke.Thickness = strokeThickness
-        else
-            tween(knob, { Position = knobPosition, BackgroundColor3 = self.Window.Theme.Text }, 0.16)
-            tween(track, { BackgroundColor3 = trackColor }, 0.16)
-            tween(trackStroke, { Color = strokeColor, Transparency = strokeTransparency, Thickness = strokeThickness }, 0.16)
         end
         if not silent and type(data.Callback or data.callback) == "function" then
             local callback = data.Callback or data.callback
@@ -3007,7 +3055,7 @@ function AxelUI.SectionMethods:AddDropdown(data)
             corner(optionButton, 4); pad(optionButton, 7, 7, 0, 0)
             pressAnimation(self.Window, optionButton)
             connect(self.Window, optionButton.MouseEnter, function()
-                tween(optionButton, { BackgroundColor3 = self.Window.Theme.ElementHover, TextColor3 = self.Window.Theme.Accent2 }, 0.1)
+                tween(optionButton, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.2), TextColor3 = self.Window.Theme.Accent2 }, 0.1)
             end)
             connect(self.Window, optionButton.MouseLeave, function() styleOption(optionButton, option) end)
             connectActivated(self.Window, optionButton, function()
@@ -3198,7 +3246,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
             corner(optionButton, 4); pad(optionButton, 7, 7, 0, 0)
             pressAnimation(self.Window, optionButton)
             connect(self.Window, optionButton.MouseEnter, function()
-                tween(optionButton, { BackgroundColor3 = self.Window.Theme.ElementHover, TextColor3 = self.Window.Theme.Accent2 }, 0.1)
+                tween(optionButton, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.2), TextColor3 = self.Window.Theme.Accent2 }, 0.1)
             end)
             connect(self.Window, optionButton.MouseLeave, function()
                 local isSelected = selectedSet[value] == true
@@ -3785,6 +3833,7 @@ end
 function AxelUI:Unload()
     if self._destroyed then return end
     self._destroyed = true
+    setFpsSampling(self, false)
     if self._edgeTween then pcall(function() self._edgeTween:Cancel() end); self._edgeTween = nil end
     if self._tabTween then pcall(function() self._tabTween:Cancel() end); self._tabTween = nil end
     for _, entry in ipairs(self._accentTweens or {}) do
@@ -3980,6 +4029,8 @@ function AxelUI.new(options)
         GlassTransparency = math.clamp(tonumber(glassOptions.Transparency or options.GlassTransparency) or 0.22, 0, 0.45),
         ReduceEffects = options.ReduceEffects == true or (options.ReduceEffects ~= false and LOW_END_TOUCH_CLIENT),
         HoverEffects = options.HoverEffects == true,
+        -- These are one-shot input animations. ReduceEffects still suppresses
+        -- persistent gradients, glints, and other decorative layers.
         AnimateControls = options.AnimateControls == true,
         AnimateAccents = options.AnimateAccents == true or (options.AnimateAccents ~= false and not LOW_END_TOUCH_CLIENT),
         AnimateOpenClose = options.AnimateOpenClose == true or (options.AnimateOpenClose ~= false and not LOW_END_TOUCH_CLIENT),
@@ -4137,12 +4188,14 @@ function AxelUI.new(options)
         addButtonGlass(self, button, 0.08)
         pressAnimation(self, button)
         connect(self, button.MouseEnter, function()
-            tween(button, { BackgroundColor3 = self.Theme.Element }, 0.12)
-            tween(buttonStroke, { Color = self.Theme.Text, Transparency = 0.04 }, 0.12)
+            tween(button, { BackgroundColor3 = self.Theme.Element:Lerp(self.Theme.Accent, 0.2) }, 0.12)
+            tween(buttonStroke, { Color = self.Theme.Accent2, Transparency = 0.04, Thickness = 1.25 }, 0.12)
+            setIconTint(buttonIcon, self.Theme.Accent2, 0.12)
         end)
         connect(self, button.MouseLeave, function()
             tween(button, { BackgroundColor3 = self.Theme.Background }, 0.16)
-            tween(buttonStroke, { Color = self.Theme.Border, Transparency = 0.16 }, 0.16)
+            tween(buttonStroke, { Color = self.Theme.Border, Transparency = 0.16, Thickness = 1 }, 0.16)
+            setIconTint(buttonIcon, self.Theme.Text, 0.16)
         end)
         connect(self, button.MouseButton1Click, callback)
         return button
@@ -4376,30 +4429,6 @@ function AxelUI.new(options)
         if processed or self._destroyed then return end
         if keyMatches(input, self.ToggleKeybind) and not self._keybindOwner then self:Toggle() end
     end)
-    self._fpsFrames = 0
-    self._fpsLastSample = os.clock()
-    connect(self, RunService.RenderStepped, function()
-        if self._destroyed then return end
-        self._fpsFrames = self._fpsFrames + 1
-        local now = os.clock()
-        local elapsed = now - self._fpsLastSample
-        if elapsed >= 0.5 then
-            local fps = math.floor(self._fpsFrames / elapsed + 0.5)
-            self._fpsFrames = 0
-            self._fpsLastSample = now
-            if self.FpsValue then self.FpsValue.Text = tostring(fps) end
-            if self.RestoreFpsText then self.RestoreFpsText.Text = tostring(fps) .. " FPS" end
-            if self.RestorePingText then
-                local player = Players.LocalPlayer
-                local pingOk, pingSeconds = pcall(function()
-                    return player and player:GetNetworkPing()
-                end)
-                self.RestorePingText.Text = pingOk and type(pingSeconds) == "number"
-                    and (tostring(math.max(0, math.floor(pingSeconds * 1000 + 0.5))) .. " ms")
-                    or "-- ms"
-            end
-        end
-    end)
     connect(self, UserInputService.InputEnded, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.Touch then
             self._dragging = false
@@ -4519,6 +4548,7 @@ function AxelUI.new(options)
         if restoreStroke then restoreStroke.Transparency = 0.04 end
         tween(self.RestoreScale, { Scale = 1 }, 0.34, Enum.EasingStyle.Back)
     end
+    setFpsSampling(self, self._open)
 
     function self:CreateTab(data) return self:AddTab(data) end
     function self:WindowToggle() return self:Toggle() end
@@ -4536,8 +4566,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.13
-AxelUI.BuildId = "8.13.0-v72-glass-lite-ui"
+AxelUI.Version = 8.15
+AxelUI.BuildId = "8.15.0-event-motion-idle-fps"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
