@@ -880,7 +880,8 @@ local function setGoldGradientActive(gradient, active)
         local entry = GOLD_GRADIENT_ANIMATIONS[gradient]
         if entry and entry.Tween then
             pcall(function()
-                local shouldPlay = active and entry.Window and entry.Window.AnimateAccents and entry.Window._open
+                local shouldPlay = active and entry.Window and entry.Window.AnimateAccents
+                    and entry.Window._open and not entry.Window._automationMotionPaused
                 if shouldPlay and entry.Tween.PlaybackState ~= Enum.PlaybackState.Playing then
                     entry.Tween:Play()
                 elseif not shouldPlay and entry.Tween.PlaybackState == Enum.PlaybackState.Playing then
@@ -892,8 +893,9 @@ local function setGoldGradientActive(gradient, active)
 end
 
 local function setAccentAnimations(self, enabled)
-    local shouldRun = enabled == true and self.AnimateAccents == true and self._open == true
-    local shouldRunBorder = enabled == true and self.AnimatedBorder == true and self._open == true
+    local motionAllowed = self._automationMotionPaused ~= true
+    local shouldRun = enabled == true and self.AnimateAccents == true and self._open == true and motionAllowed
+    local shouldRunBorder = enabled == true and self.AnimatedBorder == true and self._open == true and motionAllowed
     local function setTweenState(animation, play)
         if not animation then return end
         pcall(function()
@@ -912,6 +914,22 @@ local function setAccentAnimations(self, enabled)
     for _, entry in ipairs(self._accentTweens or {}) do
         setTweenState(entry.Tween, shouldRun and entry.Gradient and entry.Gradient.Enabled == true)
     end
+end
+
+local function setAutomationMotionPaused(self, flag, active)
+    if not self or (flag ~= "steal_auto" and flag ~= "event_rift_trade") then return end
+    local flags = self._automationMotionPauseFlags
+    if type(flags) ~= "table" then
+        flags = { steal_auto = false, event_rift_trade = false }
+        self._automationMotionPauseFlags = flags
+    end
+    flags[flag] = active == true
+    local shouldPause = flags.steal_auto == true or flags.event_rift_trade == true
+    if self._automationMotionPaused == shouldPause then return end
+    self._automationMotionPaused = shouldPause
+    -- Pause only continuous decorative tweens during Auto Steal/Rift. The
+    -- toggle/callback and one-shot input animations keep their normal path.
+    setAccentAnimations(self, not shouldPause)
 end
 
 local function setFpsSampling(self, enabled)
@@ -2840,6 +2858,7 @@ function AxelUI.SectionMethods:AddToggle(data)
         or string.find(normalizedToggleName, "auto rift", 1, true) ~= nil
     function handle:Set(value, silent, traceInfo)
         self.Value = value == true
+        setAutomationMotionPaused(self.Window, data.Flag, self.Value)
         local x = self.Value and 23 or 3
         local knobPosition = UDim2.fromOffset(x, 3)
         local trackColor = self.Value and self.Window.Theme.Accent or self.Window.Theme.Element
@@ -4126,6 +4145,7 @@ function AxelUI.new(options)
         _flags = {},
         _accentTweens = {},
         _glintTweens = {},
+        _automationMotionPauseFlags = { steal_auto = false, event_rift_trade = false },
     }, AxelUI)
     ACTIVE_FONT = options.Font
     ACTIVE_ASSET_FOLDER = self.AssetFolder
@@ -4654,8 +4674,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.19
-AxelUI.BuildId = "8.19.0-toggle-frame-trace"
+AxelUI.Version = 8.20
+AxelUI.BuildId = "8.20.0-toggle-motion-pause"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
