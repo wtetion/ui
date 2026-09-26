@@ -304,6 +304,16 @@ end
 
 local function tween(instance, goal, duration, style, direction)
     if not instance or not instance.Parent then return end
+    -- In ReduceEffects mode, set final values directly instead of creating a
+    -- Tween. This disables decorative motion throughout this ScreenGui.
+    local ancestor = instance
+    while ancestor and not ancestor:IsA("ScreenGui") do ancestor = ancestor.Parent end
+    if ancestor and ancestor:GetAttribute("AxelUI_ReduceEffects") == true then
+        for property, value in pairs(goal) do
+            pcall(function() instance[property] = value end)
+        end
+        return nil
+    end
     local ok, result = pcall(function()
         local info = TweenInfo.new(
             duration or 0.18,
@@ -786,8 +796,12 @@ local function animatePopupOpen(popup, anchor)
     if outline then tween(outline, { Transparency = 0.08 }, 0.19, Enum.EasingStyle.Quint) end
 end
 
-local function animatePopupClose(popup, anchor)
+local function animatePopupClose(popup, anchor, reduceEffects)
     if not popup or not popup.Parent then return end
+    if reduceEffects then
+        popup:Destroy()
+        return
+    end
     local width = popup.Size.X.Offset
     local position = popup.Position
     local slideDirection = popupIsBelowAnchor(popup, anchor) and -1 or 1
@@ -1236,7 +1250,7 @@ function AxelUI:SelectTab(tab)
             dashboard:SelectPill(linkedPill, true)
         end
     end
-    if self.GlowStroke then
+    if self.GlowStroke and not self.ReduceEffects then
         tween(self.GlowStroke, { Transparency = 0.34 }, 0.14)
         task.delay(0.18, function()
             if not self._destroyed then tween(self.GlowStroke, { Transparency = 0.58 }, 0.3) end
@@ -1331,18 +1345,28 @@ function AxelUI:SetOpen(visible)
                 self.Scale.Scale = 1
             end
         end
-        if self.GlowStroke then
+        if self.GlowStroke and not self.ReduceEffects then
             tween(self.GlowStroke, { Transparency = 0.015, Thickness = 2 }, 0.14, Enum.EasingStyle.Quint)
             task.delay(0.62, function()
                 if not self._destroyed and self._open then tween(self.GlowStroke, { Transparency = 0.2, Thickness = 1.5 }, 0.3) end
             end)
+        elseif self.GlowStroke then
+            self.GlowStroke.Transparency = 0.38
+            self.GlowStroke.Thickness = 1.35
         end
         if self.RestoreButton and self.RestoreButton.Visible then
             tween(self.RestoreScale, { Scale = 0.65 }, 0.12)
             task.delay(0.13, function() if self._open and self.RestoreButton then self.RestoreButton.Visible = false end end)
         end
     else
-        tween(self.GlowStroke, { Transparency = 0.72, Thickness = 1 }, 0.18)
+        if self.GlowStroke then
+            if self.ReduceEffects then
+                self.GlowStroke.Transparency = 0.72
+                self.GlowStroke.Thickness = 1
+            else
+                tween(self.GlowStroke, { Transparency = 0.72, Thickness = 1 }, 0.18)
+            end
+        end
         local function finishClose()
             if not self._destroyed and not self._open then
                 self.Window.Visible = false
@@ -1999,18 +2023,20 @@ function AxelUI:AddTab(data)
     tab.PageIndex = #self.Tabs
 
     connect(self, button.MouseButton1Click, function() self:SelectTab(tab) end)
-    connect(self, button.MouseEnter, function()
-        if self.ActiveTab ~= tab then
-            tween(button, { BackgroundColor3 = self.Theme.Surface:Lerp(self.Theme.Accent, 0.12) }, 0.14)
-            if tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.12, Color = self.Theme.Accent2, Thickness = 1.2 }, 0.14) end
-        end
-    end)
-    connect(self, button.MouseLeave, function()
-        if self.ActiveTab ~= tab then
-            tween(button, { BackgroundColor3 = self.Theme.Surface }, 0.16)
-            if tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.62, Color = self.Theme.Border, Thickness = 1 }, 0.16) end
-        end
-    end)
+    if self.HoverEffects and not self.ReduceEffects then
+        connect(self, button.MouseEnter, function()
+            if self.ActiveTab ~= tab then
+                tween(button, { BackgroundColor3 = self.Theme.Surface:Lerp(self.Theme.Accent, 0.12) }, 0.14)
+                if tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.12, Color = self.Theme.Accent2, Thickness = 1.2 }, 0.14) end
+            end
+        end)
+        connect(self, button.MouseLeave, function()
+            if self.ActiveTab ~= tab then
+                tween(button, { BackgroundColor3 = self.Theme.Surface }, 0.16)
+                if tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.62, Color = self.Theme.Border, Thickness = 1 }, 0.16) end
+            end
+        end)
+    end
     addButtonGlass(self, button, 0)
     pressAnimation(self, button)
     if #self.Tabs == 1 then self:SelectTab(tab) end
@@ -2231,18 +2257,20 @@ function AxelUI.TabMethods:AddPill(data)
     }
     table.insert(self.Pills, pill)
     connect(self.Window, button.MouseButton1Click, function() self:SelectPill(pill) end)
-    connect(self.Window, button.MouseEnter, function()
-        if not pill.Active then
-            tween(pillStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.15 }, 0.13)
-            tween(button, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.14) }, 0.13)
-        end
-    end)
-    connect(self.Window, button.MouseLeave, function()
-        if not pill.Active then
-            tween(pillStroke, { Transparency = 0.38, Color = self.Window.Theme.Border, Thickness = 0.75 }, 0.16)
-            tween(button, { BackgroundColor3 = self.Window.Theme.Element }, 0.16)
-        end
-    end)
+    if self.Window.HoverEffects and not self.Window.ReduceEffects then
+        connect(self.Window, button.MouseEnter, function()
+            if not pill.Active then
+                tween(pillStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.15 }, 0.13)
+                tween(button, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.14) }, 0.13)
+            end
+        end)
+        connect(self.Window, button.MouseLeave, function()
+            if not pill.Active then
+                tween(pillStroke, { Transparency = 0.38, Color = self.Window.Theme.Border, Thickness = 0.75 }, 0.16)
+                tween(button, { BackgroundColor3 = self.Window.Theme.Element }, 0.16)
+            end
+        end)
+    end
     addButtonGlass(self.Window, button, 0)
     pressAnimation(self.Window, button)
     if #self.Pills == 1 or data.Active or pill.TargetTab == self.Window.ActiveTab then self:SelectPill(pill) end
@@ -2352,18 +2380,20 @@ local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, righ
     table.insert(self.SubTabs, subtab)
 
     connect(self.Window, button.MouseButton1Click, function() self:SelectSubTab(subtab) end)
-    connect(self.Window, button.MouseEnter, function()
-        if not subtab.Active then
-            tween(subtabStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.15 }, 0.13)
-            tween(button, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.14) }, 0.13)
-        end
-    end)
-    connect(self.Window, button.MouseLeave, function()
-        if not subtab.Active then
-            tween(subtabStroke, { Transparency = 0.38, Color = self.Window.Theme.Border, Thickness = 0.75 }, 0.16)
-            tween(button, { BackgroundColor3 = self.Window.Theme.Element }, 0.16)
-        end
-    end)
+    if self.Window.HoverEffects and not self.Window.ReduceEffects then
+        connect(self.Window, button.MouseEnter, function()
+            if not subtab.Active then
+                tween(subtabStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.15 }, 0.13)
+                tween(button, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.14) }, 0.13)
+            end
+        end)
+        connect(self.Window, button.MouseLeave, function()
+            if not subtab.Active then
+                tween(subtabStroke, { Transparency = 0.38, Color = self.Window.Theme.Border, Thickness = 0.75 }, 0.16)
+                tween(button, { BackgroundColor3 = self.Window.Theme.Element }, 0.16)
+            end
+        end)
+    end
     addButtonGlass(self.Window, button, 0)
     pressAnimation(self.Window, button)
     if #self.SubTabs == 1 then
@@ -2817,15 +2847,17 @@ function AxelUI.SectionMethods:AddActionBar(data)
         local actionStroke = stroke(button, item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Border, 0.24, 1)
         pressAnimation(self.Window, button)
         addButtonGlass(self.Window, button, 0)
-        connect(self.Window, button.MouseEnter, function()
-            local hoverColor = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.18)
-            tween(button, { BackgroundColor3 = hoverColor }, 0.12)
-            tween(actionStroke, { Transparency = 0.02, Color = self.Window.Theme.Accent2 }, 0.12)
-        end)
-        connect(self.Window, button.MouseLeave, function()
-            tween(button, { BackgroundColor3 = item.Primary and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
-            tween(actionStroke, { Transparency = 0.24, Color = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Border }, 0.16)
-        end)
+        if self.Window.HoverEffects and not self.Window.ReduceEffects then
+            connect(self.Window, button.MouseEnter, function()
+                local hoverColor = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.18)
+                tween(button, { BackgroundColor3 = hoverColor }, 0.12)
+                tween(actionStroke, { Transparency = 0.02, Color = self.Window.Theme.Accent2 }, 0.12)
+            end)
+            connect(self.Window, button.MouseLeave, function()
+                tween(button, { BackgroundColor3 = item.Primary and self.Window.Theme.Accent or self.Window.Theme.Element }, 0.16)
+                tween(actionStroke, { Transparency = 0.24, Color = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Border }, 0.16)
+            end)
+        end
         connect(self.Window, button.MouseButton1Click, function()
             if type(item.Callback or item.callback) == "function" then task.spawn(function() pcall(item.Callback or item.callback) end) end
         end)
@@ -3102,7 +3134,7 @@ function AxelUI.SectionMethods:AddDropdown(data)
         if popup then
             local closingPopup = popup
             popup = nil
-            animatePopupClose(closingPopup, selector)
+            animatePopupClose(closingPopup, selector, self.Window.ReduceEffects)
             tween(arrow, { Rotation = 0 }, 0.14)
             setSelectorOpen(false)
         end
@@ -3164,10 +3196,12 @@ function AxelUI.SectionMethods:AddDropdown(data)
             }, popup)
             corner(optionButton, 4); pad(optionButton, 7, 7, 0, 0)
             pressAnimation(self.Window, optionButton)
-            connect(self.Window, optionButton.MouseEnter, function()
-                tween(optionButton, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.2), TextColor3 = self.Window.Theme.Accent2 }, 0.1)
-            end)
-            connect(self.Window, optionButton.MouseLeave, function() styleOption(optionButton, option) end)
+            if self.Window.HoverEffects and not self.Window.ReduceEffects then
+                connect(self.Window, optionButton.MouseEnter, function()
+                    tween(optionButton, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.2), TextColor3 = self.Window.Theme.Accent2 }, 0.1)
+                end)
+                connect(self.Window, optionButton.MouseLeave, function() styleOption(optionButton, option) end)
+            end
             connectActivated(self.Window, optionButton, function()
                 handle.Value = option; selector.Text = tostring(option); close()
                 if type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback, option) end) end
@@ -3281,7 +3315,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         if popup then
             local closingPopup = popup
             popup = nil
-            animatePopupClose(closingPopup, selector)
+            animatePopupClose(closingPopup, selector, self.Window.ReduceEffects)
             tween(arrow, { Rotation = 0 }, 0.14)
             setSelectorOpen(false)
         end
@@ -3355,16 +3389,18 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
             }, popup)
             corner(optionButton, 4); pad(optionButton, 7, 7, 0, 0)
             pressAnimation(self.Window, optionButton)
-            connect(self.Window, optionButton.MouseEnter, function()
-                tween(optionButton, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.2), TextColor3 = self.Window.Theme.Accent2 }, 0.1)
-            end)
-            connect(self.Window, optionButton.MouseLeave, function()
-                local isSelected = selectedSet[value] == true
-                tween(optionButton, {
-                    BackgroundColor3 = isSelected and self.Window.Theme.Accent or self.Window.Theme.Surface2,
-                    TextColor3 = isSelected and self.Window.Theme.Background or self.Window.Theme.Text,
-                }, 0.12)
-            end)
+            if self.Window.HoverEffects and not self.Window.ReduceEffects then
+                connect(self.Window, optionButton.MouseEnter, function()
+                    tween(optionButton, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.2), TextColor3 = self.Window.Theme.Accent2 }, 0.1)
+                end)
+                connect(self.Window, optionButton.MouseLeave, function()
+                    local isSelected = selectedSet[value] == true
+                    tween(optionButton, {
+                        BackgroundColor3 = isSelected and self.Window.Theme.Accent or self.Window.Theme.Surface2,
+                        TextColor3 = isSelected and self.Window.Theme.Background or self.Window.Theme.Text,
+                    }, 0.12)
+                end)
+            end
             optionButtons[value] = optionButton
             connectActivated(self.Window, optionButton, function()
                 if selectedSet[value] then
@@ -4141,13 +4177,16 @@ function AxelUI.new(options)
         HoverEffects = options.HoverEffects == true,
         -- These are one-shot input animations. ReduceEffects still suppresses
         -- persistent gradients, glints, and other decorative layers.
-        AnimateControls = options.AnimateControls == true,
-        AnimateAccents = options.AnimateAccents == true or (options.AnimateAccents ~= false and not LOW_END_TOUCH_CLIENT),
-        AnimateOpenClose = options.AnimateOpenClose == true or (options.AnimateOpenClose ~= false and not LOW_END_TOUCH_CLIENT),
-        AnimatedBorder = options.AnimatedBorder == true or glassOptions.AnimatedBorder == true
-            or (options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false and not LOW_END_TOUCH_CLIENT),
+        AnimateControls = options.AnimateControls == true and not (options.ReduceEffects == true),
+        AnimateAccents = options.ReduceEffects ~= true and (options.AnimateAccents == true
+            or (options.AnimateAccents ~= false and not LOW_END_TOUCH_CLIENT)),
+        AnimateOpenClose = options.ReduceEffects ~= true and (options.AnimateOpenClose == true
+            or (options.AnimateOpenClose ~= false and not LOW_END_TOUCH_CLIENT)),
+        AnimatedBorder = options.ReduceEffects ~= true and (options.AnimatedBorder == true or glassOptions.AnimatedBorder == true
+            or (options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false and not LOW_END_TOUCH_CLIENT)),
         BorderAnimationDuration = math.clamp(tonumber(glassOptions.AnimationDuration or options.BorderAnimationDuration) or 3.2, 0.8, 15),
-        TabAnimation = options.TabAnimation == true or (options.TabAnimation ~= false and not LOW_END_TOUCH_CLIENT),
+        TabAnimation = options.ReduceEffects ~= true and (options.TabAnimation == true
+            or (options.TabAnimation ~= false and not LOW_END_TOUCH_CLIENT)),
         TabAnimationDuration = math.clamp(tonumber(options.TabAnimationDuration) or 0.2, 0.08, 0.7),
         TabSlideOffset = math.clamp(tonumber(options.TabSlideOffset) or 18, 4, 48),
         _flags = {},
@@ -4159,6 +4198,7 @@ function AxelUI.new(options)
     ACTIVE_ASSET_FOLDER = self.AssetFolder
     self.TabMethods = AxelUI.TabMethods
     self.Gui = new("ScreenGui", { Name = globalKey, IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global }, guiParent)
+    self.Gui:SetAttribute("AxelUI_ReduceEffects", self.ReduceEffects)
     _G[globalKey] = self
     windowRegistry[globalKey] = self
     AxelUI._activeWindow = self
@@ -4220,8 +4260,10 @@ function AxelUI.new(options)
             if self._open then edgeTween:Play() end
         end
     end
-    connect(self, self.Window.MouseEnter, function() tween(self.GlowStroke, { Transparency = 0.025, Thickness = 2 }, 0.18) end)
-    connect(self, self.Window.MouseLeave, function() tween(self.GlowStroke, { Transparency = 0.24, Thickness = 1.45 }, 0.2) end)
+    if self.HoverEffects and not self.ReduceEffects then
+        connect(self, self.Window.MouseEnter, function() tween(self.GlowStroke, { Transparency = 0.025, Thickness = 2 }, 0.18) end)
+        connect(self, self.Window.MouseLeave, function() tween(self.GlowStroke, { Transparency = 0.24, Thickness = 1.45 }, 0.2) end)
+    end
     new("UIGradient", {
         Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, self.Theme.Background),
@@ -4302,16 +4344,18 @@ function AxelUI.new(options)
         buttonIcon.ZIndex = 11
         addButtonGlass(self, button, 0.08)
         pressAnimation(self, button)
-        connect(self, button.MouseEnter, function()
-            tween(button, { BackgroundColor3 = self.Theme.Element:Lerp(self.Theme.Accent, 0.2) }, 0.12)
-            tween(buttonStroke, { Color = self.Theme.Accent2, Transparency = 0.04, Thickness = 1.25 }, 0.12)
-            setIconTint(buttonIcon, self.Theme.Accent2, 0.12)
-        end)
-        connect(self, button.MouseLeave, function()
-            tween(button, { BackgroundColor3 = self.Theme.Background }, 0.16)
-            tween(buttonStroke, { Color = self.Theme.Border, Transparency = 0.16, Thickness = 1 }, 0.16)
-            setIconTint(buttonIcon, self.Theme.Text, 0.16)
-        end)
+        if self.HoverEffects and not self.ReduceEffects then
+            connect(self, button.MouseEnter, function()
+                tween(button, { BackgroundColor3 = self.Theme.Element:Lerp(self.Theme.Accent, 0.2) }, 0.12)
+                tween(buttonStroke, { Color = self.Theme.Accent2, Transparency = 0.04, Thickness = 1.25 }, 0.12)
+                setIconTint(buttonIcon, self.Theme.Accent2, 0.12)
+            end)
+            connect(self, button.MouseLeave, function()
+                tween(button, { BackgroundColor3 = self.Theme.Background }, 0.16)
+                tween(buttonStroke, { Color = self.Theme.Border, Transparency = 0.16, Thickness = 1 }, 0.16)
+                setIconTint(buttonIcon, self.Theme.Text, 0.16)
+            end)
+        end
         connect(self, button.MouseButton1Click, callback)
         return button
     end
@@ -4343,19 +4387,21 @@ function AxelUI.new(options)
     resizeIcon.Visible = self.ShowResizeGrip
     self.ResizeHandle = resizeHandle
     resizeHandle.Visible = self.Resizable
-    connect(self, resizeHandle.MouseEnter, function()
-        if not self.ShowResizeGrip then
-            resizeIcon.Visible = true
-            setIconTint(resizeIcon, self.Theme.SubText, 0.12)
-            tween(resizeHandle, { BackgroundTransparency = 0.24 }, 0.12)
-        end
-    end)
-    connect(self, resizeHandle.MouseLeave, function()
-        if not self.ShowResizeGrip then
-            resizeIcon.Visible = false
-            tween(resizeHandle, { BackgroundTransparency = 1 }, 0.16)
-        end
-    end)
+    if self.HoverEffects and not self.ReduceEffects then
+        connect(self, resizeHandle.MouseEnter, function()
+            if not self.ShowResizeGrip then
+                resizeIcon.Visible = true
+                setIconTint(resizeIcon, self.Theme.SubText, 0.12)
+                tween(resizeHandle, { BackgroundTransparency = 0.24 }, 0.12)
+            end
+        end)
+        connect(self, resizeHandle.MouseLeave, function()
+            if not self.ShowResizeGrip then
+                resizeIcon.Visible = false
+                tween(resizeHandle, { BackgroundTransparency = 1 }, 0.16)
+            end
+        end)
+    end
     connect(self, resizeHandle.InputBegan, function(input)
         if not self.Resizable or self._maximized then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -4682,8 +4728,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.23
-AxelUI.BuildId = "8.23.0-toggle-frame-budget"
+AxelUI.Version = 8.24
+AxelUI.BuildId = "8.24.0-static-low-motion"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
