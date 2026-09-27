@@ -1,11 +1,24 @@
--- AxelUI Library
--- A small, dependency-free Roblox/Luau UI library for executor scripts.
--- Features: font fallback, Lucide-style icons with text fallback, animated
--- window, hover/press effects, tabs, status cards, search, descriptions,
--- toggles, buttons, sliders, dropdowns, inputs, keybinds, labels and notifications.
--- Includes responsive desktop/mobile layout, theme and config support,
--- Oxide-compatible aliases, and Unload() cleanup for tracked connections.
--- Quick start is included in AxelUI_Library_Example.luau.
+--[=[
+    AxelUI Library
+    A small, dependency-free Roblox/Luau UI library for executor scripts.
+
+    Features
+      * Clean font fallback (custom FontFace can be supplied)
+      * Lucide-style image icons with a text fallback
+      * Loading animation and animated window open
+      * Press/hover animations for controls
+      * Tabs, badges, live status text and status pills
+      * Search box in the top bar
+      * Descriptions on sections and controls
+      * Toggle, button, slider, dropdown, input, keybind, label and status
+      * Notification stack, secret toggle keybind and a touch-friendly floating button
+      * Responsive desktop/mobile two-column layout
+      * Theme switching, local/asset backgrounds and JSON config persistence
+      * Oxide-style compatibility aliases: CreateWindow, AddSubTab and AddMultiDropdown
+      * Unload() removes the window and every tracked connection
+
+    Quick start is included in AxelUI_Library_Example.luau.
+]=]
 
 local AxelUI = {}
 AxelUI.__index = AxelUI
@@ -21,15 +34,6 @@ local LOW_END_TOUCH_CLIENT = UserInputService.TouchEnabled == true
 local ACTIVE_FONT
 local ACTIVE_ASSET_FOLDER
 local GOLD_GRADIENT_ANIMATIONS = setmetatable({}, { __mode = "k" })
-
-local function getSharedEnvironment()
-    local environment = _G
-    pcall(function()
-        if type(getgenv) == "function" then environment = getgenv() end
-    end)
-    if type(environment) ~= "table" then environment = _G end
-    return environment
-end
 
 local DEFAULT_THEME = {
     Background = Color3.fromRGB(12, 13, 17),
@@ -335,7 +339,6 @@ local ICON_ALIASES = {
     person = "user", player = "user", team = "user", group = "user", globe = "world", compass = "world", map = "world",
     visible = "eye", render = "eye", esp = "eye", eyeoff = "eye", hidden = "eye", wrench = "settings",
     sliders = "settings", utilities = "settings", gear = "settings", speed = "gauge", activity = "gauge",
-    wifi = "wifi",
     running = "move", arrows = "move", teleport = "move", aim = "target", crosshair = "target",
     favorite = "star", sparkle = "star", logo = "star", time = "clock", timer = "clock", chart = "gauge",
     download = "save", upload = "save", clipboard = "file", list = "file", inventory = "file",
@@ -357,8 +360,7 @@ local function canonicalIcon(value)
         or name == "gauge" or name == "clock" or name == "move" or name == "target" or name == "grid"
         or name == "file" or name == "cart" or name == "shield" or name == "save" or name == "bolt"
         or name == "check" or name == "close" or name == "plus" or name == "minus" or name == "search"
-        or name == "maximize" or name == "chevron" or name == "sun" or name == "resize" or name == "refresh"
-        or name == "wifi" then
+        or name == "maximize" or name == "chevron" or name == "sun" or name == "resize" or name == "refresh" then
         return name
     end
     return "star"
@@ -431,10 +433,6 @@ local function vectorIcon(parent, name, size, tint)
         dot(12, 12, 19, false); segment(3, 12, 21, 12, 1.4); segment(12, 3, 12, 21, 1.4)
         segment(8, 4, 7, 12, 1.2); segment(7, 12, 8, 20, 1.2)
         segment(16, 4, 17, 12, 1.2); segment(17, 12, 16, 20, 1.2)
-    elseif name == "wifi" then
-        segment(3, 8, 7, 5, 1.8); segment(7, 5, 12, 3.5, 1.8); segment(12, 3.5, 17, 5, 1.8); segment(17, 5, 21, 8, 1.8)
-        segment(7, 13, 9, 11, 1.8); segment(9, 11, 12, 10, 1.8); segment(12, 10, 15, 11, 1.8); segment(15, 11, 17, 13, 1.8)
-        dot(12, 19, 3, true)
     elseif name == "eye" then
         segment(2, 12, 7, 6, 1.8); segment(7, 6, 12, 4, 1.8); segment(12, 4, 17, 6, 1.8)
         segment(17, 6, 22, 12, 1.8); segment(22, 12, 17, 18, 1.8); segment(17, 18, 12, 20, 1.8)
@@ -528,24 +526,16 @@ end
 
 local function setIconTint(object, color, duration)
     if not object then return end
-    local instant = LOW_END_TOUCH_CLIENT or tonumber(duration) == 0
-    local function apply(target, property, value)
-        if instant then
-            pcall(function() target[property] = value end)
-        else
-            tween(target, { [property] = value }, duration or 0.18)
-        end
-    end
     if object:IsA("ImageLabel") or object:IsA("ImageButton") then
-        apply(object, "ImageColor3", color)
+        tween(object, { ImageColor3 = color }, duration or 0.18)
         local fallback = object.Parent and object.Parent:FindFirstChild("AxelVectorIcon")
         if fallback then setIconTint(fallback, color, duration) end
         return
     end
     if object:IsA("GuiObject") then
         for _, child in ipairs(object:GetDescendants()) do
-            if child:IsA("GuiObject") and child.Name ~= "AxelVectorIcon" then apply(child, "BackgroundColor3", color) end
-            if child:IsA("UIStroke") then apply(child, "Color", color) end
+            if child:IsA("GuiObject") and child.Name ~= "AxelVectorIcon" then tween(child, { BackgroundColor3 = color }, duration or 0.18) end
+            if child:IsA("UIStroke") then tween(child, { Color = color }, duration or 0.18) end
         end
     end
 end
@@ -682,17 +672,6 @@ local function connect(self, signal, callback)
     end
 end
 
-local function connectActivated(self, button, callback)
-    if not button then return nil end
-    local activatedSignal
-    pcall(function() activatedSignal = button.Activated end)
-    local connection = activatedSignal and connect(self, activatedSignal, callback)
-    if not connection then
-        connection = connect(self, button.MouseButton1Click, callback)
-    end
-    return connection
-end
-
 local function keyMatches(input, key)
     if not input or not key then return false end
     if typeof(key) == "EnumItem" then return input.KeyCode == key end
@@ -707,7 +686,7 @@ local function keyName(value)
     return text:gsub("^Enum%.[^.]+%.", "")
 end
 
-local function placePopup(popup, anchor, width, height, preferBelow, preferSide)
+local function placePopup(popup, anchor, width, height, preferBelow)
     if not popup or not anchor then return end
     local viewport = Vector2.new(1280, 720)
     pcall(function()
@@ -715,27 +694,6 @@ local function placePopup(popup, anchor, width, height, preferBelow, preferSide)
     end)
     local anchorPosition = anchor.AbsolutePosition
     local anchorSize = anchor.AbsoluteSize
-    if preferSide then
-        local fittedHeight = math.min(height, math.max(1, viewport.Y - 16))
-        local right = anchorPosition.X + anchorSize.X + 8
-        local left = anchorPosition.X - width - 8
-        local sideX
-        if right + width <= viewport.X - 8 then
-            sideX = right
-        elseif left >= 8 then
-            sideX = left
-        end
-        if sideX then
-            local sideY = math.clamp(
-                anchorPosition.Y + (anchorSize.Y - fittedHeight) * 0.5,
-                8,
-                math.max(8, viewport.Y - fittedHeight - 8)
-            )
-            popup.Size = UDim2.fromOffset(width, fittedHeight)
-            popup.Position = UDim2.fromOffset(sideX, sideY)
-            return
-        end
-    end
     local x = math.clamp(anchorPosition.X, 8, math.max(8, viewport.X - width - 8))
     local below = anchorPosition.Y + anchorSize.Y + 4
     local availableBelow = viewport.Y - below - 8
@@ -750,63 +708,10 @@ local function placePopup(popup, anchor, width, height, preferBelow, preferSide)
     popup.Position = UDim2.fromOffset(x, y)
 end
 
-local function dropdownPopupMetrics(anchor, count, mobile, multi)
-    local viewport = Vector2.new(1280, 720)
-    pcall(function()
-        if workspace.CurrentCamera then viewport = workspace.CurrentCamera.ViewportSize end
-    end)
-    local optionHeight = mobile and 32 or 24
-    local width = mobile and (multi and 160 or 154) or (multi and 140 or 136)
-    local anchorWidth = 0
-    pcall(function() anchorWidth = anchor.AbsoluteSize.X end)
-    width = math.min(math.max(width, math.floor(anchorWidth)), math.max(120, viewport.X - 16))
-    local maxHeight = mobile and 158 or 136
-    local height = math.min(math.max(count, 1) * optionHeight + 8, maxHeight)
-    return width, height, optionHeight
-end
-
-local function popupIsBelowAnchor(popup, anchor)
-    if not popup or not anchor then return true end
-    local popupY = popup.Position.Y.Offset
-    local anchorMiddle = anchor.AbsolutePosition.Y + anchor.AbsoluteSize.Y * 0.5
-    return popupY >= anchorMiddle
-end
-
-local function animatePopupOpen(popup, anchor)
-    if not popup or not popup.Parent then return end
-    local targetSize = popup.Size
-    local targetPosition = popup.Position
-    local slideDirection = popupIsBelowAnchor(popup, anchor) and -1 or 1
-    local outline = popup:FindFirstChildOfClass("UIStroke")
-    popup.Size = UDim2.fromOffset(targetSize.X.Offset, 0)
-    popup.Position = UDim2.new(targetPosition.X.Scale, targetPosition.X.Offset, targetPosition.Y.Scale, targetPosition.Y.Offset + slideDirection * 8)
-    popup.BackgroundTransparency = 0.16
-    if outline then outline.Transparency = 0.62 end
-    tween(popup, { Size = targetSize, Position = targetPosition, BackgroundTransparency = 0 }, 0.19, Enum.EasingStyle.Quint)
-    if outline then tween(outline, { Transparency = 0.08 }, 0.19, Enum.EasingStyle.Quint) end
-end
-
-local function animatePopupClose(popup, anchor)
-    if not popup or not popup.Parent then return end
-    local width = popup.Size.X.Offset
-    local position = popup.Position
-    local slideDirection = popupIsBelowAnchor(popup, anchor) and -1 or 1
-    local outline = popup:FindFirstChildOfClass("UIStroke")
-    tween(popup, {
-        Size = UDim2.fromOffset(width, 0),
-        Position = UDim2.new(position.X.Scale, position.X.Offset, position.Y.Scale, position.Y.Offset + slideDirection * 7),
-        BackgroundTransparency = 1,
-    }, 0.15, Enum.EasingStyle.Quad)
-    if outline then tween(outline, { Transparency = 1 }, 0.13, Enum.EasingStyle.Quad) end
-    task.delay(0.17, function()
-        if popup.Parent then popup:Destroy() end
-    end)
-end
-
-local function pressAnimation(self, button, scaleObject, reducedHoverStyle)
+local function pressAnimation(self, button, scaleObject)
     if not button then return end
-    -- Match v7.2 on reduced-effects clients: skip decorative input hooks and
-    -- tweens entirely. This keeps low-end/touch buttons cheap during presses.
+    -- Low-end touch devices benefit more from fewer live GUI objects and
+    -- input connections than from decorative press scaling.
     if self.ReduceEffects then return end
     local scale = scaleObject or new("UIScale", { Scale = 1 }, button)
     connect(self, button.MouseEnter, function()
@@ -880,8 +785,7 @@ local function setGoldGradientActive(gradient, active)
         local entry = GOLD_GRADIENT_ANIMATIONS[gradient]
         if entry and entry.Tween then
             pcall(function()
-                local shouldPlay = active and entry.Window and entry.Window.AnimateAccents
-                    and entry.Window._open
+                local shouldPlay = active and entry.Window and entry.Window.AnimateAccents and entry.Window._open
                 if shouldPlay and entry.Tween.PlaybackState ~= Enum.PlaybackState.Playing then
                     entry.Tween:Play()
                 elseif not shouldPlay and entry.Tween.PlaybackState == Enum.PlaybackState.Playing then
@@ -894,7 +798,6 @@ end
 
 local function setAccentAnimations(self, enabled)
     local shouldRun = enabled == true and self.AnimateAccents == true and self._open == true
-    local shouldRunBorder = enabled == true and self.AnimatedBorder == true and self._open == true
     local function setTweenState(animation, play)
         if not animation then return end
         pcall(function()
@@ -906,52 +809,13 @@ local function setAccentAnimations(self, enabled)
         end)
     end
 
-    setTweenState(self._edgeTween, shouldRunBorder)
+    setTweenState(self._edgeTween, shouldRun)
     for _, animation in ipairs(self._glintTweens or {}) do
         setTweenState(animation, shouldRun)
     end
     for _, entry in ipairs(self._accentTweens or {}) do
         setTweenState(entry.Tween, shouldRun and entry.Gradient and entry.Gradient.Enabled == true)
     end
-end
-
-local function setFpsSampling(self, enabled)
-    if enabled then
-        if self._fpsConnection or self._destroyed then return end
-        self._fpsFrames = 0
-        self._fpsElapsed = 0
-        self._fpsConnection = RunService.RenderStepped:Connect(function(deltaTime)
-            local windowVisible = self._open and self.Window and self.Window.Visible
-            local restoreVisible = self.RestoreButton and self.RestoreButton.Visible
-            if self._destroyed or not (windowVisible or restoreVisible) then return end
-            self._fpsFrames = self._fpsFrames + 1
-            self._fpsElapsed = self._fpsElapsed + math.max(tonumber(deltaTime) or 0, 0)
-            if self._fpsElapsed >= 1 then
-                local elapsed = self._fpsElapsed
-                local fps = math.floor(self._fpsFrames / elapsed + 0.5)
-                self._fpsFrames = 0
-                self._fpsElapsed = 0
-                if self.FpsValue then self.FpsValue.Text = tostring(fps) end
-                if self.RestoreFpsText then self.RestoreFpsText.Text = tostring(fps) .. " FPS" end
-                if self.RestorePingText then
-                    local player = Players.LocalPlayer
-                    local pingOk, pingSeconds = pcall(function()
-                        return player and player:GetNetworkPing()
-                    end)
-                    self.RestorePingText.Text = pingOk and type(pingSeconds) == "number"
-                        and (tostring(math.max(0, math.floor(pingSeconds * 1000 + 0.5))) .. " ms")
-                        or "-- ms"
-                end
-            end
-        end)
-        return
-    end
-
-    self._fpsFrames = 0
-    self._fpsElapsed = 0
-    local connection = self._fpsConnection
-    self._fpsConnection = nil
-    if connection then pcall(function() connection:Disconnect() end) end
 end
 
 local function setTextColor(instance, color)
@@ -1057,8 +921,6 @@ function AxelUI:_makeRow(parent, data, height)
     }, parent)
     corner(row, 8)
     local rowStroke = stroke(row, data.Primary and self.Theme.Accent2 or self.Theme.Border, 0.4, 1)
-    local baseRowColor = data.Primary and self.Theme.Accent or self.Theme.Surface2
-    local hoverRowColor = data.Primary and self.Theme.Accent2 or self.Theme.Element:Lerp(self.Theme.Accent, 0.18)
     local hoverGlass
     if not self.ReduceEffects then
         new("UIGradient", {
@@ -1106,34 +968,17 @@ function AxelUI:_makeRow(parent, data, height)
         descriptionLabel.Size = UDim2.new(1, -rightReserved - textOffset, 0, 16)
         descriptionLabel.Position = UDim2.fromOffset(textOffset, 17)
     end
-    pressAnimation(self, row, nil, {
-        Color = data.Primary and self.Theme.Accent2 or self.Theme.ElementHover,
-        Transparency = data.Primary and 0.025 or 0,
-        StrokeColor = self.Theme.Accent2,
-        StrokeTransparency = 0.035,
-        StrokeThickness = 1.65,
-    })
+    pressAnimation(self, row)
     if not self.ReduceEffects then
         connect(self, row.MouseEnter, function()
-            tween(row, { BackgroundColor3 = hoverRowColor }, 0.12)
-            tween(rowStroke, { Color = self.Theme.Accent2, Transparency = 0.06, Thickness = 1.35 }, 0.12)
+            tween(row, { BackgroundColor3 = self.Theme.ElementHover }, 0.12)
+            tween(rowStroke, { Transparency = 0.05 }, 0.12)
             tween(hoverGlass, { BackgroundTransparency = 0.9 }, 0.12)
         end)
         connect(self, row.MouseLeave, function()
-            tween(row, { BackgroundColor3 = baseRowColor }, 0.18)
-            tween(rowStroke, { Color = data.Primary and self.Theme.Accent2 or self.Theme.Border, Transparency = 0.4, Thickness = 1 }, 0.18)
+            tween(row, { BackgroundColor3 = data.Primary and self.Theme.Accent or self.Theme.Surface2 }, 0.18)
+            tween(rowStroke, { Transparency = 0.4 }, 0.18)
             tween(hoverGlass, { BackgroundTransparency = 1 }, 0.18)
-        end)
-    elseif self.HoverEffects then
-        -- Keep hover motion event-driven and lightweight: reuse the row/stroke
-        -- instead of adding per-row gradients or animated overlay layers.
-        connect(self, row.MouseEnter, function()
-            tween(row, { BackgroundColor3 = hoverRowColor }, 0.12)
-            tween(rowStroke, { Color = self.Theme.Accent2, Transparency = 0.08, Thickness = 1.3 }, 0.12)
-        end)
-        connect(self, row.MouseLeave, function()
-            tween(row, { BackgroundColor3 = baseRowColor }, 0.15)
-            tween(rowStroke, { Color = data.Primary and self.Theme.Accent2 or self.Theme.Border, Transparency = 0.4, Thickness = 1 }, 0.15)
         end)
     end
     self:_registerSearch(row, (data.Name or "") .. " " .. (data.Description or ""), title)
@@ -1285,8 +1130,6 @@ function AxelUI:SetOpen(visible)
     if self._destroyed or not self.Window then return end
     visible = visible == true
     self._open = visible
-    -- Keep sampling while minimized so the floating restore card stays live.
-    setFpsSampling(self, true)
     if visible then
         self.Window.Visible = true
         self.Window.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
@@ -1352,8 +1195,8 @@ function AxelUI:SetToggleKeybind(key)
     self.ToggleKeybind = key or Enum.KeyCode.RightControl
 end
 
--- Glass tints the window shell and page backdrop; header, sidebar, cards and
--- controls stay solid so their text and states remain readable.
+-- Glass is limited to the shell and the empty page backdrop. Header, sidebar,
+-- cards and controls remain solid so their text and states stay readable.
 function AxelUI:SetGlass(value, transparency)
     if type(value) == "table" then
         if value.Enabled ~= nil then self.GlassEnabled = value.Enabled == true end
@@ -1368,8 +1211,6 @@ function AxelUI:SetGlass(value, transparency)
         self.Window.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
     end
     if self.PageHolder then
-        -- Match the v7.2 dark-glass treatment on the page itself; a fully
-        -- transparent holder lets bright map scenery wash through the UI.
         self.PageHolder.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
         for _, cap in ipairs(self.PageCornerCaps or {}) do
             cap.BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0
@@ -1768,26 +1609,16 @@ local function bindVerticalLayout(window, parent, layout, extra, onSize)
         preserveHeight(parent, height)
         if onSize then onSize(height) end
     end
-    local syncQueued = false
-    local function queueSync()
-        if syncQueued then return end
-        syncQueued = true
-        task.defer(function()
-            syncQueued = false
-            if window._destroyed then return end
-            sync()
-        end)
-    end
     local function watch(child)
         if not child or not child:IsA("GuiObject") then return end
-        connect(window, child:GetPropertyChangedSignal("Size"), queueSync)
-        connect(window, child:GetPropertyChangedSignal("Visible"), queueSync)
+        connect(window, child:GetPropertyChangedSignal("Size"), function() task.defer(sync) end)
+        connect(window, child:GetPropertyChangedSignal("Visible"), function() task.defer(sync) end)
     end
-    connect(window, layout:GetPropertyChangedSignal("AbsoluteContentSize"), queueSync)
-    connect(window, parent.ChildAdded, function(child) watch(child); queueSync() end)
-    connect(window, parent.ChildRemoved, queueSync)
+    connect(window, layout:GetPropertyChangedSignal("AbsoluteContentSize"), sync)
+    connect(window, parent.ChildAdded, function(child) watch(child); task.defer(sync) end)
+    connect(window, parent.ChildRemoved, function() task.defer(sync) end)
     for _, child in ipairs(parent:GetChildren()) do watch(child) end
-    queueSync()
+    task.defer(sync)
     return sync
 end
 
@@ -1839,24 +1670,14 @@ local function makePageColumns(window, page, topOffset)
         preserveHeight(columns, columnLayout.AbsoluteContentSize.Y)
         pageBody.CanvasSize = UDim2.new(0, 0, 0, columnLayout.AbsoluteContentSize.Y + 18)
     end
-    local columnsSyncQueued = false
-    local function queueSyncColumns()
-        if columnsSyncQueued then return end
-        columnsSyncQueued = true
-        task.defer(function()
-            columnsSyncQueued = false
-            if window._destroyed then return end
-            syncColumns()
-        end)
-    end
-    connect(window, leftLayout:GetPropertyChangedSignal("AbsoluteContentSize"), queueSyncColumns)
-    connect(window, rightLayout:GetPropertyChangedSignal("AbsoluteContentSize"), queueSyncColumns)
-    connect(window, columnLayout:GetPropertyChangedSignal("AbsoluteContentSize"), queueSyncColumns)
-    connect(window, leftColumn.ChildAdded, queueSyncColumns)
-    connect(window, leftColumn.ChildRemoved, queueSyncColumns)
-    connect(window, rightColumn.ChildAdded, queueSyncColumns)
-    connect(window, rightColumn.ChildRemoved, queueSyncColumns)
-    queueSyncColumns()
+    connect(window, leftLayout:GetPropertyChangedSignal("AbsoluteContentSize"), syncColumns)
+    connect(window, rightLayout:GetPropertyChangedSignal("AbsoluteContentSize"), syncColumns)
+    connect(window, columnLayout:GetPropertyChangedSignal("AbsoluteContentSize"), syncColumns)
+    connect(window, leftColumn.ChildAdded, function() task.defer(syncColumns) end)
+    connect(window, leftColumn.ChildRemoved, function() task.defer(syncColumns) end)
+    connect(window, rightColumn.ChildAdded, function() task.defer(syncColumns) end)
+    connect(window, rightColumn.ChildRemoved, function() task.defer(syncColumns) end)
+    task.defer(syncColumns)
     return pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout
 end
 
@@ -1870,13 +1691,11 @@ local function makeSubTabCard(window, parent, title)
     }, parent)
     corner(card, 8)
     stroke(card, window.Theme.Border, 0.28, 1)
-    if not window.ReduceEffects then
-        new("UIGradient", {
-            Color = ColorSequence.new(window.Theme.Surface, window.Theme.Background),
-            Transparency = NumberSequence.new(0),
-            Rotation = 90,
-        }, card)
-    end
+    new("UIGradient", {
+        Color = ColorSequence.new(window.Theme.Surface, window.Theme.Background),
+        Transparency = NumberSequence.new(0),
+        Rotation = 90,
+    }, card)
     local cardHeader = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32) }, card)
     pad(cardHeader, 12, 12, 6, 3)
     local cardTitle = textLabel(cardHeader, title, 13, window.Theme.Text, true)
@@ -1967,16 +1786,10 @@ function AxelUI:AddTab(data)
 
     connect(self, button.MouseButton1Click, function() self:SelectTab(tab) end)
     connect(self, button.MouseEnter, function()
-        if self.ActiveTab ~= tab then
-            tween(button, { BackgroundColor3 = self.Theme.Surface:Lerp(self.Theme.Accent, 0.12) }, 0.14)
-            if tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.12, Color = self.Theme.Accent2, Thickness = 1.2 }, 0.14) end
-        end
+        if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.24, Color = self.Theme.Accent2 }, 0.14) end
     end)
     connect(self, button.MouseLeave, function()
-        if self.ActiveTab ~= tab then
-            tween(button, { BackgroundColor3 = self.Theme.Surface }, 0.16)
-            if tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.62, Color = self.Theme.Border, Thickness = 1 }, 0.16) end
-        end
+        if self.ActiveTab ~= tab and tab.TabStroke then tween(tab.TabStroke, { Transparency = 0.9, Color = self.Theme.Border }, 0.16) end
     end)
     addButtonGlass(self, button, 0)
     pressAnimation(self, button)
@@ -2200,8 +2013,8 @@ function AxelUI.TabMethods:AddPill(data)
     connect(self.Window, button.MouseButton1Click, function() self:SelectPill(pill) end)
     connect(self.Window, button.MouseEnter, function()
         if not pill.Active then
-            tween(pillStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.15 }, 0.13)
-            tween(button, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.14) }, 0.13)
+            tween(pillStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.05 }, 0.13)
+            tween(button, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.13)
         end
     end)
     connect(self.Window, button.MouseLeave, function()
@@ -2321,8 +2134,8 @@ local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, righ
     connect(self.Window, button.MouseButton1Click, function() self:SelectSubTab(subtab) end)
     connect(self.Window, button.MouseEnter, function()
         if not subtab.Active then
-            tween(subtabStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.15 }, 0.13)
-            tween(button, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.14) }, 0.13)
+            tween(subtabStroke, { Transparency = 0.08, Color = self.Window.Theme.Accent2, Thickness = 1.05 }, 0.13)
+            tween(button, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.13)
         end
     end)
     connect(self.Window, button.MouseLeave, function()
@@ -2376,13 +2189,11 @@ function AxelUI.TabMethods:AddSection(data)
     }, parent)
     corner(card, 9)
     stroke(card, self.Window.Theme.Border, 0.28, 1)
-    if not self.Window.ReduceEffects then
-        new("UIGradient", {
-            Color = ColorSequence.new(self.Window.Theme.Surface, self.Window.Theme.Background),
-            Transparency = NumberSequence.new(0),
-            Rotation = 90,
-        }, card)
-    end
+    new("UIGradient", {
+        Color = ColorSequence.new(self.Window.Theme.Surface, self.Window.Theme.Background),
+        Transparency = NumberSequence.new(0),
+        Rotation = 90,
+    }, card)
     local headerHeight = data.Description ~= "" and 48 or 35
     local header = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, headerHeight) }, card)
     pad(header, 12, 12, 8, 4)
@@ -2392,22 +2203,14 @@ function AxelUI.TabMethods:AddSection(data)
         AutoButtonColor = false,
         BackgroundColor3 = self.Window.Theme.Element,
         BorderSizePixel = 0,
-        Text = "",
+        Text = "-",
+        TextColor3 = self.Window.Theme.Accent2,
+        TextSize = 16,
+        FontFace = fontFace(nil, true),
         Size = UDim2.fromOffset(24, 22),
         Position = UDim2.new(1, -34, 0, 5),
     }, header)
     corner(collapseButton, 8)
-    local collapseGlyph = icon(collapseButton, "plus", 14, self.Window.Theme.Accent2)
-    collapseGlyph.AnchorPoint = Vector2.new(0.5, 0.5)
-    collapseGlyph.Position = UDim2.fromScale(0.5, 0.5)
-    local collapseVertical = nil
-    for _, part in ipairs(collapseGlyph:GetChildren()) do
-        if part.Name == "AxelIconLine" and math.abs(part.Rotation) > 45 then
-            collapseVertical = part
-            break
-        end
-    end
-    if collapseVertical then collapseVertical.Visible = false end
     if section.Description ~= "" then
         local description = textLabel(header, section.Description, 10, self.Window.Theme.SubText, false)
         description.Size = UDim2.new(1, -52, 0, 17)
@@ -2424,47 +2227,22 @@ function AxelUI.TabMethods:AddSection(data)
         end
     end)
     section.Card, section.Body, section.Layout, section.Toggle = card, body, layout, collapseButton
-    section.CollapseGlyph, section.CollapseVertical = collapseGlyph, collapseVertical
     function section:SetCollapsed(value)
         self.Collapsed = value == true
-        if self.CollapseVertical then self.CollapseVertical.Visible = self.Collapsed end
-        if self.Window.ReduceEffects then
-            collapseButton.BackgroundColor3 = self.Collapsed and self.Window.Theme.Surface2 or self.Window.Theme.Element
-        else
-            tween(collapseButton, { BackgroundColor3 = self.Collapsed and self.Window.Theme.Surface2 or self.Window.Theme.Element }, 0.16)
-        end
+        collapseButton.Text = self.Collapsed and "+" or "-"
+        tween(collapseButton, { BackgroundColor3 = self.Collapsed and self.Window.Theme.Surface2 or self.Window.Theme.Element }, 0.16)
         if self.Collapsed then
-            if self.Window.ReduceEffects then
-                body.BackgroundTransparency = 1
-            else
-                tween(body, { BackgroundTransparency = 1 }, 0.12)
-            end
+            tween(body, { BackgroundTransparency = 1 }, 0.12)
             preserveHeight(card, headerHeight)
-            if self.Window.ReduceEffects then
-                body.Visible = false
-            else
-                task.delay(0.12, function() if body.Parent and self.Collapsed then body.Visible = false end end)
-            end
+            task.delay(0.12, function() if body.Parent and self.Collapsed then body.Visible = false end end)
         else
             body.Visible = true
-            if self.Window.ReduceEffects then
-                body.BackgroundTransparency = 1
-            else
-                tween(body, { BackgroundTransparency = 1 }, 0.14)
-            end
+            tween(body, { BackgroundTransparency = 1 }, 0.14)
             if syncBodyHeight then syncBodyHeight() end
         end
     end
     connect(self.Window, collapseButton.MouseButton1Click, function() section:SetCollapsed(not section.Collapsed) end)
     pressAnimation(self.Window, collapseButton)
-    if not self.Window.ReduceEffects then
-        connect(self.Window, collapseButton.MouseEnter, function()
-            tween(collapseButton, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.12)
-        end)
-        connect(self.Window, collapseButton.MouseLeave, function()
-            tween(collapseButton, { BackgroundColor3 = self.Window.Theme.Element }, 0.16)
-        end)
-    end
     self.Window:_registerSearch(card, section.Name .. " " .. section.Description, title, { Container = true })
     table.insert(self.Sections, section)
     if self.ActivePill then self:SelectPill(self.ActivePill, true) end
@@ -2509,93 +2287,18 @@ end
 function AxelUI.SectionMethods:AddParagraph(data)
     data = data or {}
     local contentText = tostring(data.Content or "")
-    local compact = data.Compact == true
-    local tooltipText = tostring(data.Tooltip or "")
     local lineCount = select(2, contentText:gsub("\n", "\n")) + 1
-    local contentHeight = tonumber(data.Height) or (compact
-        and math.max(18, lineCount * 14, (#contentText > 90 and 42 or 0))
-        or math.max(36, lineCount * 16, (#contentText > 90 and 52 or 0)))
-    local wrapperHeight = compact and (31 + contentHeight) or (19 + contentHeight)
-    local wrapperSize = compact
-        and UDim2.new(math.clamp(tonumber(data.WidthScale) or 0.72, 0.4, 1), 0, 0, wrapperHeight)
-        or UDim2.new(1, 0, 0, wrapperHeight)
-    local wrapper = new("Frame", {
-        BackgroundColor3 = compact and self.Window.Theme.Surface2 or self.Window.Theme.Background,
-        BackgroundTransparency = compact and 0 or 1,
-        BorderSizePixel = 0,
-        Size = wrapperSize,
-    }, self.Body)
-    if compact then
-        corner(wrapper, 8)
-        stroke(wrapper, self.Window.Theme.Border, 0.24, 1)
-    end
+    local contentHeight = tonumber(data.Height) or math.max(36, lineCount * 16, (#contentText > 90 and 52 or 0))
+    local wrapper = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 19 + contentHeight) }, self.Body)
     local title = textLabel(wrapper, data.Title or data.Name or "Info", 12, self.Window.Theme.Accent2, true)
-    title.Position = compact and UDim2.fromOffset(10, 6) or UDim2.fromOffset(0, 0)
-    title.Size = UDim2.new(1, compact and -20 or 0, 0, 18)
+    title.Size = UDim2.new(1, 0, 0, 18)
     local content = textLabel(wrapper, data.Content or "", 11, self.Window.Theme.SubText, false)
-    content.Position = compact and UDim2.fromOffset(10, 24) or UDim2.fromOffset(0, 19)
-    content.Size = UDim2.new(1, compact and -20 or 0, 0, contentHeight)
+    content.Position = UDim2.fromOffset(0, 19)
+    content.Size = UDim2.new(1, 0, 0, contentHeight)
     content.TextWrapped = true
     content.TextYAlignment = Enum.TextYAlignment.Top
     self.Window:_registerSearch(wrapper, tostring(data.Title or "") .. " " .. tostring(data.Content or ""))
-    local tooltip
-    if tooltipText ~= "" and self.Window.Gui then
-        local tooltipHeight = math.clamp(math.max(38, math.ceil(#tooltipText / 42) * 15 + 14), 38, 82)
-        tooltip = new("Frame", {
-            BackgroundColor3 = self.Window.Theme.Element,
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            Size = UDim2.fromOffset(252, tooltipHeight),
-            Visible = false,
-            ZIndex = 250,
-        }, self.Window.Gui)
-        corner(tooltip, 7)
-        local tooltipStroke = stroke(tooltip, self.Window.Theme.Accent, 1, 1)
-        local tooltipLabel = textLabel(tooltip, tooltipText, 10, self.Window.Theme.Text, false)
-        tooltipLabel.Position = UDim2.fromOffset(9, 7)
-        tooltipLabel.Size = UDim2.new(1, -18, 1, -14)
-        tooltipLabel.TextWrapped = true
-        tooltipLabel.TextYAlignment = Enum.TextYAlignment.Center
-        tooltipLabel.TextTransparency = 1
-        tooltipLabel.ZIndex = 251
-        local hovering, hoverRevision = false, 0
-        local function hideTooltip()
-            hovering = false
-            hoverRevision += 1
-            if not tooltip or not tooltip.Visible then return end
-            tween(tooltip, { BackgroundTransparency = 1 }, 0.1, Enum.EasingStyle.Quad)
-            tween(tooltipStroke, { Transparency = 1 }, 0.1, Enum.EasingStyle.Quad)
-            tween(tooltipLabel, { TextTransparency = 1 }, 0.1, Enum.EasingStyle.Quad)
-            task.delay(0.12, function()
-                if not hovering and tooltip and tooltip.Parent then tooltip.Visible = false end
-            end)
-        end
-        connect(self.Window, wrapper.MouseEnter, function()
-            hovering = true
-            hoverRevision += 1
-            local revision = hoverRevision
-            task.delay(0.28, function()
-                if not hovering or revision ~= hoverRevision or self.Window._destroyed or not self.Window._open
-                    or not wrapper.Parent or not tooltip or not tooltip.Parent then return end
-                placePopup(tooltip, wrapper, 252, tooltipHeight, false)
-                tooltip.Visible = true
-                tooltip.BackgroundTransparency = 1
-                tooltipStroke.Transparency = 1
-                tooltipLabel.TextTransparency = 1
-                tween(tooltip, { BackgroundTransparency = 0.04 }, 0.12, Enum.EasingStyle.Quad)
-                tween(tooltipStroke, { Transparency = 0.18 }, 0.12, Enum.EasingStyle.Quad)
-                tween(tooltipLabel, { TextTransparency = 0 }, 0.12, Enum.EasingStyle.Quad)
-            end)
-        end)
-        connect(self.Window, wrapper.MouseLeave, hideTooltip)
-        connect(self.Window, self.Window.Window:GetPropertyChangedSignal("Visible"), function()
-            if not self.Window.Window.Visible then hideTooltip() end
-        end)
-        connect(self.Window, wrapper.Destroying, function()
-            if tooltip and tooltip.Parent then tooltip:Destroy() end
-        end)
-    end
-    local handle = { Instance = wrapper, Title = title, Content = content, Tooltip = tooltip }
+    local handle = { Instance = wrapper, Title = title, Content = content }
     function handle:Set(value) self.Content.Text = tostring(value or "") end
     function handle:Get() return self.Content.Text end
     function handle:SetVisibility(value) self.Instance.Visible = value == true end
@@ -2785,8 +2488,7 @@ function AxelUI.SectionMethods:AddActionBar(data)
         pressAnimation(self.Window, button)
         addButtonGlass(self.Window, button, 0)
         connect(self.Window, button.MouseEnter, function()
-            local hoverColor = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.18)
-            tween(button, { BackgroundColor3 = hoverColor }, 0.12)
+            tween(button, { BackgroundColor3 = item.Primary and self.Window.Theme.Accent2 or self.Window.Theme.ElementHover }, 0.12)
             tween(actionStroke, { Transparency = 0.02, Color = self.Window.Theme.Accent2 }, 0.12)
         end)
         connect(self.Window, button.MouseLeave, function()
@@ -2826,28 +2528,26 @@ function AxelUI.SectionMethods:AddToggle(data)
         local strokeColor = self.Value and self.Window.Theme.Accent2 or self.Window.Theme.Border
         local strokeTransparency = self.Value and 0.04 or 0.28
         local strokeThickness = self.Value and 1.5 or 1
-        if self.Window.AnimateControls and not self.Window.ReduceEffects then
-            -- Reduced-effects mode updates immediately, as in the known-good
-            -- v7.2 toggle path. Full-effects mode keeps one short knob tween.
-            tween(knob, { Position = knobPosition }, 0.13, Enum.EasingStyle.Quint)
-            track.BackgroundColor3 = trackColor
-            trackStroke.Color = strokeColor
-            trackStroke.Transparency = strokeTransparency
-            trackStroke.Thickness = strokeThickness
-        else
+        if self.Window.ReduceEffects then
             knob.Position = knobPosition
             knob.BackgroundColor3 = self.Window.Theme.Text
             track.BackgroundColor3 = trackColor
             trackStroke.Color = strokeColor
             trackStroke.Transparency = strokeTransparency
             trackStroke.Thickness = strokeThickness
+        else
+            tween(knob, { Position = knobPosition, BackgroundColor3 = self.Window.Theme.Text }, 0.16)
+            tween(track, { BackgroundColor3 = trackColor }, 0.16)
+            tween(trackStroke, { Color = strokeColor, Transparency = strokeTransparency, Thickness = strokeThickness }, 0.16)
         end
         if not silent and type(data.Callback or data.callback) == "function" then
             local callback = data.Callback or data.callback
             local callbackValue = self.Value
             task.spawn(function()
-                -- Keep the v7.2 dispatch contract: yield once after input,
-                -- then invoke the callback in a scheduled task.
+                -- Let the input/state update reach a render step before a
+                -- feature callback starts work. Other AxelUI controls already
+                -- dispatch callbacks on spawned tasks; toggles must do the
+                -- same so a long callback cannot hold the input resumption.
                 task.wait()
                 if self.Window and self.Window._destroyed then return end
                 pcall(callback, callbackValue)
@@ -2973,16 +2673,12 @@ end
 function AxelUI.SectionMethods:AddDropdown(data)
     data = data or {}
     data.Icon = data.Icon or "chevron"
-    local mobile = self.Window.IsMobile == true
-    local selectorWidth = mobile and 150 or 134
-    local selectorHeight = mobile and 32 or 27
-    data.RightReserved = data.RightReserved or (selectorWidth + 20)
+    data.RightReserved = data.RightReserved or 165
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local selected = data.Default
     local options = data.Options or data.Items or {}
     if type(options) ~= "table" then options = { options } end
     local selector = new("TextButton", {
-        Active = true,
         AutoButtonColor = false,
         BackgroundColor3 = self.Window.Theme.Element,
         BorderSizePixel = 0,
@@ -2990,12 +2686,11 @@ function AxelUI.SectionMethods:AddDropdown(data)
         TextColor3 = self.Window.Theme.Text,
         TextSize = 11,
         FontFace = fontFace(nil, false),
-        Size = UDim2.fromOffset(selectorWidth, selectorHeight),
-        Position = UDim2.new(1, -(selectorWidth + 10), 0.5, -selectorHeight / 2),
+        Size = UDim2.fromOffset(145, 25),
+        Position = UDim2.new(1, -155, 0.5, -12),
         ZIndex = 8,
     }, inner)
     corner(selector, 5)
-    local selectorStroke = stroke(selector, self.Window.Theme.Border, 0.38, 1)
     pad(selector, 9, 26, 0, 0)
     selector.TextXAlignment = Enum.TextXAlignment.Left
     selector.TextTruncate = Enum.TextTruncate.AtEnd
@@ -3005,89 +2700,37 @@ function AxelUI.SectionMethods:AddDropdown(data)
     arrow.ZIndex = selector.ZIndex + 1
     local popup
     local handle = { Value = selected, Row = row }
-    local function setSelectorOpen(isOpen)
-        tween(selector, {
-            BackgroundColor3 = isOpen and self.Window.Theme.Background or self.Window.Theme.Element,
-            TextColor3 = isOpen and self.Window.Theme.Accent2 or self.Window.Theme.Text,
-        }, 0.12)
-        tween(selectorStroke, {
-            Color = isOpen and self.Window.Theme.Accent or self.Window.Theme.Border,
-            Transparency = isOpen and 0.04 or 0.38,
-            Thickness = isOpen and 1.25 or 1,
-        }, 0.12)
-        setIconTint(arrow, isOpen and self.Window.Theme.Accent2 or self.Window.Theme.SubText, 0.12)
-    end
     local function close()
-        if popup then
-            local closingPopup = popup
-            popup = nil
-            animatePopupClose(closingPopup, selector)
-            tween(arrow, { Rotation = 0 }, 0.14)
-            setSelectorOpen(false)
-        end
+        if popup then popup:Destroy(); popup = nil; tween(arrow, { Rotation = 0 }, 0.14) end
         if self.Window._dropdownClose == close then self.Window._dropdownClose = nil end
     end
     local function open()
         if popup then close(); return end
-        if self.Window._dropdownClose and self.Window._dropdownClose ~= close then pcall(self.Window._dropdownClose) end
-        local popupWidth, popupHeight, optionHeight = dropdownPopupMetrics(selector, #options, self.Window.IsMobile == true, false)
+        local popupWidth = 120
+        local popupHeight = math.min(#options * 26 + 3, 190)
         popup = new("ScrollingFrame", {
             Active = true,
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = self.Window.Theme.Background,
-            BackgroundTransparency = 0,
+            BackgroundColor3 = self.Window.Theme.Surface,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(),
             ScrollBarImageColor3 = self.Window.Theme.Accent,
-            ScrollBarThickness = self.Window.IsMobile and 3 or 2,
+            ScrollBarThickness = 3,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             Size = UDim2.fromOffset(popupWidth, popupHeight),
             ZIndex = 50,
         }, self.Window.Gui)
-        corner(popup, 7); stroke(popup, self.Window.Theme.Accent, 0.08, 1.15); pad(popup, 3, 3, 3, 3)
-        placePopup(popup, selector, popupWidth, popupHeight, true, not self.Window.IsMobile)
-        animatePopupOpen(popup, selector)
-        setSelectorOpen(true)
+        corner(popup, 5); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 2, 2, 2, 2)
+        placePopup(popup, selector, popupWidth, popupHeight, true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
-        new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
-        local function styleOption(button, option)
-            local isSelected = tostring(option) == tostring(handle.Value)
-            button.BackgroundColor3 = isSelected and self.Window.Theme.Accent or self.Window.Theme.Surface2
-            button.TextColor3 = isSelected and self.Window.Theme.Background or self.Window.Theme.Text
-        end
-        if #options == 0 then
-            new("TextLabel", {
-                BackgroundTransparency = 1,
-                FontFace = fontFace(nil, false),
-                Size = UDim2.new(1, 0, 0, optionHeight),
-                Text = "No options",
-                TextColor3 = self.Window.Theme.SubText,
-                TextSize = self.Window.IsMobile and 11 or 10,
-                ZIndex = 51,
-            }, popup)
-        end
+        local list = new("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
         for _, option in ipairs(options) do
-            local optionButton = new("TextButton", {
-                Active = true,
-                AutoButtonColor = false,
-                BackgroundColor3 = tostring(option) == tostring(handle.Value) and self.Window.Theme.Accent or self.Window.Theme.Surface2,
-                BorderSizePixel = 0,
-                Text = tostring(option),
-                TextColor3 = tostring(option) == tostring(handle.Value) and self.Window.Theme.Background or self.Window.Theme.Text,
-                TextSize = self.Window.IsMobile and 11 or 10,
-                FontFace = fontFace(nil, false),
-                Size = UDim2.new(1, 0, 0, optionHeight),
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextTruncate = Enum.TextTruncate.AtEnd,
-                ZIndex = 51,
-            }, popup)
-            corner(optionButton, 4); pad(optionButton, 7, 7, 0, 0)
+            local optionButton = new("TextButton", { AutoButtonColor = false, BackgroundColor3 = self.Window.Theme.Surface2, BorderSizePixel = 0, Text = tostring(option), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.new(1, 0, 0, 25), ZIndex = 51 }, popup)
+            corner(optionButton, 4)
             pressAnimation(self.Window, optionButton)
-            connect(self.Window, optionButton.MouseEnter, function()
-                tween(optionButton, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.2), TextColor3 = self.Window.Theme.Accent2 }, 0.1)
-            end)
-            connect(self.Window, optionButton.MouseLeave, function() styleOption(optionButton, option) end)
-            connectActivated(self.Window, optionButton, function()
+            connect(self.Window, optionButton.MouseEnter, function() tween(optionButton, { BackgroundColor3 = self.Window.Theme.ElementHover }, 0.1) end)
+            connect(self.Window, optionButton.MouseLeave, function() tween(optionButton, { BackgroundColor3 = self.Window.Theme.Surface2 }, 0.12) end)
+            connect(self.Window, optionButton.Activated, function()
                 handle.Value = option; selector.Text = tostring(option); close()
                 if type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback, option) end) end
             end)
@@ -3116,7 +2759,7 @@ function AxelUI.SectionMethods:AddDropdown(data)
         end
     end
     handle.SetItems = handle.SetOptions
-    connectActivated(self.Window, selector, open)
+    connect(self.Window, selector.Activated, open)
     pressAnimation(self.Window, selector)
     self.Window:_registerFlag(data.Flag, handle)
     table.insert(self.Controls, handle)
@@ -3126,10 +2769,7 @@ end
 function AxelUI.SectionMethods:AddMultiDropdown(data)
     data = data or {}
     data.Icon = data.Icon or "chevron"
-    local mobile = self.Window.IsMobile == true
-    local selectorWidth = mobile and 158 or 142
-    local selectorHeight = mobile and 32 or 27
-    data.RightReserved = data.RightReserved or (selectorWidth + 20)
+    data.RightReserved = data.RightReserved or 175
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local options = data.Options or data.Items or {}
     if type(options) ~= "table" then options = { options } end
@@ -3160,7 +2800,6 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         return #text > 22 and text:sub(1, 19) .. "..." or text
     end
     local selector = new("TextButton", {
-        Active = true,
         AutoButtonColor = false,
         BackgroundColor3 = self.Window.Theme.Element,
         BorderSizePixel = 0,
@@ -3168,13 +2807,12 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         TextColor3 = self.Window.Theme.Text,
         TextSize = 11,
         FontFace = fontFace(nil, false),
-        Size = UDim2.fromOffset(selectorWidth, selectorHeight),
-        Position = UDim2.new(1, -(selectorWidth + 10), 0.5, -selectorHeight / 2),
+        Size = UDim2.fromOffset(155, 25),
+        Position = UDim2.new(1, -165, 0.5, -12),
         TextTruncate = Enum.TextTruncate.AtEnd,
         ZIndex = 8,
     }, inner)
     corner(selector, 5)
-    local selectorStroke = stroke(selector, self.Window.Theme.Border, 0.38, 1)
     pad(selector, 9, 27, 0, 0)
     selector.TextXAlignment = Enum.TextXAlignment.Left
     local popup
@@ -3184,108 +2822,61 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
     arrow.ZIndex = selector.ZIndex + 1
     local optionButtons = {}
     local handle = { Value = selected, Row = row }
-    local function setSelectorOpen(isOpen)
-        tween(selector, {
-            BackgroundColor3 = isOpen and self.Window.Theme.Background or self.Window.Theme.Element,
-            TextColor3 = isOpen and self.Window.Theme.Accent2 or self.Window.Theme.Text,
-        }, 0.12)
-        tween(selectorStroke, {
-            Color = isOpen and self.Window.Theme.Accent or self.Window.Theme.Border,
-            Transparency = isOpen and 0.04 or 0.38,
-            Thickness = isOpen and 1.25 or 1,
-        }, 0.12)
-        setIconTint(arrow, isOpen and self.Window.Theme.Accent2 or self.Window.Theme.SubText, 0.12)
-    end
     local function close()
-        if popup then
-            local closingPopup = popup
-            popup = nil
-            animatePopupClose(closingPopup, selector)
-            tween(arrow, { Rotation = 0 }, 0.14)
-            setSelectorOpen(false)
-        end
+        if popup then popup:Destroy(); popup = nil; tween(arrow, { Rotation = 0 }, 0.14) end
         optionButtons = {}
         if self.Window._dropdownClose == close then self.Window._dropdownClose = nil end
     end
-    local function refreshButtons(animatedValue)
+    local function refreshButtons()
         for value, button in pairs(optionButtons) do
             if button and button.Parent then
-                local isSelected = selectedSet[tostring(value)] == true
-                button.Text = (isSelected and "ON  " or "OFF  ") .. tostring(value)
-                local background = isSelected and self.Window.Theme.Accent or self.Window.Theme.Surface2
-                local textColor = isSelected and self.Window.Theme.Background or self.Window.Theme.Text
-                if animatedValue ~= nil and tostring(value) == tostring(animatedValue) then
-                    tween(button, { BackgroundColor3 = background, TextColor3 = textColor }, 0.1)
-                else
-                    button.BackgroundColor3 = background
-                    button.TextColor3 = textColor
-                end
+                button.Text = (selectedSet[tostring(value)] and "ON  " or "OFF  ") .. tostring(value)
+                button.BackgroundColor3 = selectedSet[tostring(value)] and self.Window.Theme.ElementHover or self.Window.Theme.Surface2
             end
         end
     end
     local function open()
         if popup then close(); return end
-        if self.Window._dropdownClose and self.Window._dropdownClose ~= close then pcall(self.Window._dropdownClose) end
-        local popupWidth, popupHeight, optionHeight = dropdownPopupMetrics(selector, #options, self.Window.IsMobile == true, true)
+        local popupWidth = 140
+        local popupHeight = math.min(#options * 26 + 3, 190)
         popup = new("ScrollingFrame", {
             Active = true,
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = self.Window.Theme.Background,
-            BackgroundTransparency = 0,
+            BackgroundColor3 = self.Window.Theme.Surface,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(),
             ScrollBarImageColor3 = self.Window.Theme.Accent,
-            ScrollBarThickness = self.Window.IsMobile and 3 or 2,
+            ScrollBarThickness = 3,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             Size = UDim2.fromOffset(popupWidth, popupHeight),
             ZIndex = 60,
         }, self.Window.Gui)
-        corner(popup, 7); stroke(popup, self.Window.Theme.Accent, 0.08, 1.15); pad(popup, 3, 3, 3, 3)
-        placePopup(popup, selector, popupWidth, popupHeight, true, not self.Window.IsMobile)
-        animatePopupOpen(popup, selector)
-        setSelectorOpen(true)
+        corner(popup, 7); stroke(popup, self.Window.Theme.Border, 0.05, 1); pad(popup, 2, 2, 2, 2)
+        placePopup(popup, selector, popupWidth, popupHeight, true)
         tween(arrow, { Rotation = 180 }, 0.16, Enum.EasingStyle.Quint)
         new("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }, popup)
-        if #options == 0 then
-            new("TextLabel", {
-                BackgroundTransparency = 1,
-                FontFace = fontFace(nil, false),
-                Size = UDim2.new(1, 0, 0, optionHeight),
-                Text = "No options",
-                TextColor3 = self.Window.Theme.SubText,
-                TextSize = self.Window.IsMobile and 11 or 10,
-                ZIndex = 61,
-            }, popup)
-        end
         for _, option in ipairs(options) do
             local value = tostring(option)
             local optionButton = new("TextButton", {
-                Active = true,
                 AutoButtonColor = false,
-                BackgroundColor3 = selectedSet[value] and self.Window.Theme.Accent or self.Window.Theme.Surface2,
+                BackgroundColor3 = selectedSet[value] and self.Window.Theme.ElementHover or self.Window.Theme.Surface2,
                 BorderSizePixel = 0,
                 Text = (selectedSet[value] and "ON  " or "OFF  ") .. value,
-                TextColor3 = selectedSet[value] and self.Window.Theme.Background or self.Window.Theme.Text,
-                TextSize = self.Window.IsMobile and 11 or 10,
+                TextColor3 = self.Window.Theme.Text,
+                TextSize = 11,
                 FontFace = fontFace(nil, false),
-                Size = UDim2.new(1, 0, 0, optionHeight),
+                Size = UDim2.new(1, 0, 0, 25),
                 TextXAlignment = Enum.TextXAlignment.Left,
                 ZIndex = 61,
             }, popup)
-            corner(optionButton, 4); pad(optionButton, 7, 7, 0, 0)
+            corner(optionButton, 4)
             pressAnimation(self.Window, optionButton)
-            connect(self.Window, optionButton.MouseEnter, function()
-                tween(optionButton, { BackgroundColor3 = self.Window.Theme.Element:Lerp(self.Window.Theme.Accent, 0.2), TextColor3 = self.Window.Theme.Accent2 }, 0.1)
-            end)
+            connect(self.Window, optionButton.MouseEnter, function() tween(optionButton, { BackgroundColor3 = self.Window.Theme.ElementHover }, 0.1) end)
             connect(self.Window, optionButton.MouseLeave, function()
-                local isSelected = selectedSet[value] == true
-                tween(optionButton, {
-                    BackgroundColor3 = isSelected and self.Window.Theme.Accent or self.Window.Theme.Surface2,
-                    TextColor3 = isSelected and self.Window.Theme.Background or self.Window.Theme.Text,
-                }, 0.12)
+                tween(optionButton, { BackgroundColor3 = selectedSet[value] and self.Window.Theme.ElementHover or self.Window.Theme.Surface2 }, 0.12)
             end)
             optionButtons[value] = optionButton
-            connectActivated(self.Window, optionButton, function()
+            connect(self.Window, optionButton.Activated, function()
                 if selectedSet[value] then
                     selectedSet[value] = nil
                     for index, item in ipairs(selected) do
@@ -3296,7 +2887,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
                     table.insert(selected, option)
                 end
                 selector.Text = displayValue()
-                refreshButtons(value)
+                refreshButtons()
                 if type(data.Callback or data.callback) == "function" then
                     task.spawn(function() pcall(data.Callback or data.callback, selected) end)
                 end
@@ -3318,7 +2909,7 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         for index, value in ipairs(selected) do result[index] = value end
         return result
     end
-    connectActivated(self.Window, selector, open)
+    connect(self.Window, selector.Activated, open)
     pressAnimation(self.Window, selector)
     self.Window:_registerFlag(data.Flag, handle)
     table.insert(self.Controls, handle)
@@ -3436,47 +3027,17 @@ AxelUI.SectionMethods.AddColorpicker = AxelUI.SectionMethods.AddColorPicker
 function AxelUI.SectionMethods:AddInput(data)
     data = data or {}
     data.Icon = data.Icon or "search"
-    local fullWidth = data.FullWidth == true or data.Layout == "Stacked"
-    data.RightReserved = data.RightReserved or (fullWidth and 18 or 170)
-    local row, inner, title = self.Window:_makeRow(self.Body, data, data.Height or (fullWidth and 60 or 42))
-    local titleX = title and title.Position.X.Offset or 27
-    local box = new("TextBox", {
-        BackgroundColor3 = self.Window.Theme.Element,
-        BorderSizePixel = 0,
-        ClearTextOnFocus = false,
-        ClipsDescendants = true,
-        MultiLine = false,
-        PlaceholderText = tostring(data.Placeholder or "Input"),
-        PlaceholderColor3 = self.Window.Theme.Muted,
-        Text = tostring(data.Default or ""),
-        TextColor3 = self.Window.Theme.Text,
-        TextSize = 11,
-        TextWrapped = false,
-        TextScaled = false,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextYAlignment = Enum.TextYAlignment.Center,
-        FontFace = fontFace(nil, false),
-        Size = fullWidth and UDim2.new(1, -(titleX + 18), 0, 24) or UDim2.fromOffset(160, 25),
-        Position = fullWidth and UDim2.new(0, titleX, 0, 28) or UDim2.new(1, -170, 0.5, -12),
-        ZIndex = 8,
-    }, inner)
-    corner(box, 5)
-    pad(box, 8, 8, 0, 0)
-    local boxStroke = stroke(box, self.Window.Theme.Border, 0.35, 1)
+    data.RightReserved = data.RightReserved or 170
+    local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 42)
+    local box = new("TextBox", { BackgroundColor3 = self.Window.Theme.Element, BorderSizePixel = 0, ClearTextOnFocus = false, PlaceholderText = tostring(data.Placeholder or "Input"), PlaceholderColor3 = self.Window.Theme.Muted, Text = tostring(data.Default or ""), TextColor3 = self.Window.Theme.Text, TextSize = 11, FontFace = fontFace(nil, false), Size = UDim2.fromOffset(160, 25), Position = UDim2.new(1, -170, 0.5, -12), ZIndex = 8 }, inner)
+    corner(box, 5); pad(box, 8, 8, 0, 0)
     local handle = { Instance = box, Value = box.Text }
     function handle:Set(value, silent)
         self.Value = tostring(value or ""); box.Text = self.Value
         if not silent and type(data.Callback or data.callback) == "function" then task.spawn(function() pcall(data.Callback or data.callback, self.Value) end) end
     end
     function handle:Get() return box.Text end
-    connect(self.Window, box.Focused, function()
-        tween(boxStroke, { Color = self.Window.Theme.Accent, Transparency = 0.04, Thickness = 1.15 }, 0.12)
-    end)
     connect(self.Window, box.FocusLost, function() handle:Set(box.Text) end)
-    connect(self.Window, box.FocusLost, function()
-        tween(boxStroke, { Color = self.Window.Theme.Border, Transparency = 0.35, Thickness = 1 }, 0.14)
-    end)
     self.Window:_registerFlag(data.Flag, handle)
     table.insert(self.Controls, handle)
     return handle
@@ -3692,7 +3253,7 @@ function AxelUI.SectionMethods:AddProfileCard(data)
         local username = tostring(values.Username or values.UserName or values.Name or "player")
         if username:sub(1, 1) ~= "@" then username = "@" .. username end
         local userId = values.UserId or values.AccountId
-        if userId ~= nil then username = username .. " · ID: " .. tostring(userId) end
+        if userId ~= nil then username ..= " · ID: " .. tostring(userId) end
         local age = values.AccountAge or values.Age
         local ageText = age == nil and "Account Age: --" or "Account Age: " .. tostring(age) .. (type(age) == "number" and " days" or "")
         nameLabel.Text = tostring(displayName)
@@ -3751,10 +3312,9 @@ function AxelUI.SectionMethods:AddMetricGrid(data)
             LayoutOrder = item.LayoutOrder or index,
         }, grid)
         corner(tile, 7); stroke(tile, window.Theme.Border, 0.22, 1)
-        local metricIcon = icon(tile, item.Icon or "activity", 15, item.IconColor or metricColor)
+        local metricIcon = icon(tile, item.Icon or "activity", 13, item.IconColor or metricColor)
         metricIcon.Position = UDim2.fromOffset(8, 6)
-        -- Keep this icon above the tile under global ScreenGui ZIndex.
-        metricIcon.ZIndex = (tonumber(tile.ZIndex) or 0) + 1
+        metricIcon.ZIndex = 6
         local metricTitle = textLabel(tile, metricName, 9, window.Theme.SubText, false)
         metricTitle.Position = UDim2.fromOffset(26, 5)
         metricTitle.Size = UDim2.new(1, -32, 0, 15)
@@ -3769,7 +3329,7 @@ function AxelUI.SectionMethods:AddMetricGrid(data)
             self.Color = color or self.Color
             metricValue.Text = self.Text
             metricValue.TextColor3 = self.Color
-            if item.IconColor == nil then setIconTint(metricIcon, self.Color, window.ReduceEffects and 0 or nil) end
+            if item.IconColor == nil then setIconTint(metricIcon, self.Color) end
         end
         function metric:Get() return self.Text end
         local key = tostring(item.Key or metricName)
@@ -3862,7 +3422,6 @@ end
 function AxelUI:Unload()
     if self._destroyed then return end
     self._destroyed = true
-    setFpsSampling(self, false)
     if self._edgeTween then pcall(function() self._edgeTween:Cancel() end); self._edgeTween = nil end
     if self._tabTween then pcall(function() self._tabTween:Cancel() end); self._tabTween = nil end
     for _, entry in ipairs(self._accentTweens or {}) do
@@ -3877,32 +3436,7 @@ function AxelUI:Unload()
     if self._dropdownClose then pcall(self._dropdownClose) end
     if self.Gui then pcall(function() self.Gui:Destroy() end) end
     if self._globalKey and _G[self._globalKey] == self then _G[self._globalKey] = nil end
-    local registry = self._windowRegistry
-    if registry and self._globalKey and registry[self._globalKey] == self then
-        registry[self._globalKey] = nil
-        if next(registry) == nil and self._sharedEnvironment
-            and self._sharedEnvironment.__AxelUI_WindowRegistry == registry then
-            self._sharedEnvironment.__AxelUI_WindowRegistry = nil
-        end
-    end
-    if AxelUI._activeWindow == self then
-        AxelUI._activeWindow = nil
-        ACTIVE_FONT = nil
-        ACTIVE_ASSET_FOLDER = nil
-    end
-    self._flags = {}
-    self._searchRows = {}
-    self._searchData = setmetatable({}, { __mode = "k" })
-    self._notifications = {}
-    self.Tabs = {}
-    self.ActiveTab = nil
-    self._loadingOverlay = nil
-    self.RestoreButton = nil
-    self.TouchButton = nil
-    self.Window = nil
-    self.Gui = nil
-    self._windowRegistry = nil
-    self._sharedEnvironment = nil
+    if AxelUI._activeWindow == self then AxelUI._activeWindow = nil end
     return true
 end
 
@@ -3998,39 +3532,7 @@ function AxelUI.new(options)
     options = options or {}
     local glassOptions = type(options.Glass) == "table" and options.Glass or {}
     local globalKey = tostring(options.GuiName or options.Name or "AxelUI")
-    local sharedEnvironment = getSharedEnvironment()
-    local windowRegistry = sharedEnvironment.__AxelUI_WindowRegistry
-    if type(windowRegistry) ~= "table" then
-        windowRegistry = {}
-        sharedEnvironment.__AxelUI_WindowRegistry = windowRegistry
-    end
-    local seenWindows = {}
-    local previousWindows = {}
-    if windowRegistry[globalKey] then table.insert(previousWindows, windowRegistry[globalKey]) end
-    if _G[globalKey] then table.insert(previousWindows, _G[globalKey]) end
-    if AxelUI._activeWindow then table.insert(previousWindows, AxelUI._activeWindow) end
-    for _, previous in ipairs(previousWindows) do
-        if previous and not seenWindows[previous] then
-            seenWindows[previous] = true
-            local matchesName = previous == windowRegistry[globalKey]
-                or (type(previous) == "table" and previous._globalKey == globalKey)
-            if matchesName and type(previous) == "table" and type(previous.Unload) == "function" then
-                pcall(function() previous:Unload() end)
-            end
-        end
-    end
-    sharedEnvironment.__AxelUI_WindowRegistry = windowRegistry
-    local guiParent = resolveParent()
-    if guiParent then
-        local childrenOk, children = pcall(function() return guiParent:GetChildren() end)
-        if childrenOk then
-            for _, child in ipairs(children) do
-                if child.Name == globalKey and child:IsA("ScreenGui") then
-                    pcall(function() child:Destroy() end)
-                end
-            end
-        end
-    end
+    if _G[globalKey] and type(_G[globalKey].Unload) == "function" then pcall(function() _G[globalKey]:Unload() end) end
     local self = setmetatable({
         _connections = {},
         _searchRows = {},
@@ -4040,8 +3542,6 @@ function AxelUI.new(options)
         _open = true,
         StartMinimized = options.StartMinimized == true,
         _globalKey = globalKey,
-        _sharedEnvironment = sharedEnvironment,
-        _windowRegistry = windowRegistry,
         Theme = normalizeTheme(options.Theme, AxelUI._pendingTheme),
         Tabs = {},
         ActiveTab = nil,
@@ -4057,14 +3557,9 @@ function AxelUI.new(options)
         GlassEnabled = type(options.Glass) == "boolean" and options.Glass or glassOptions.Enabled == true,
         GlassTransparency = math.clamp(tonumber(glassOptions.Transparency or options.GlassTransparency) or 0.22, 0, 0.45),
         ReduceEffects = options.ReduceEffects == true or (options.ReduceEffects ~= false and LOW_END_TOUCH_CLIENT),
-        HoverEffects = options.HoverEffects == true,
-        -- These are one-shot input animations. ReduceEffects still suppresses
-        -- persistent gradients, glints, and other decorative layers.
-        AnimateControls = options.AnimateControls == true,
         AnimateAccents = options.AnimateAccents == true or (options.AnimateAccents ~= false and not LOW_END_TOUCH_CLIENT),
         AnimateOpenClose = options.AnimateOpenClose == true or (options.AnimateOpenClose ~= false and not LOW_END_TOUCH_CLIENT),
-        AnimatedBorder = options.AnimatedBorder == true or glassOptions.AnimatedBorder == true
-            or (options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false and not LOW_END_TOUCH_CLIENT),
+        AnimatedBorder = options.AnimatedBorder == true or (options.AnimatedBorder ~= false and glassOptions.AnimatedBorder ~= false and not LOW_END_TOUCH_CLIENT),
         BorderAnimationDuration = math.clamp(tonumber(glassOptions.AnimationDuration or options.BorderAnimationDuration) or 3.2, 0.8, 15),
         TabAnimation = options.TabAnimation == true or (options.TabAnimation ~= false and not LOW_END_TOUCH_CLIENT),
         TabAnimationDuration = math.clamp(tonumber(options.TabAnimationDuration) or 0.2, 0.08, 0.7),
@@ -4076,9 +3571,8 @@ function AxelUI.new(options)
     ACTIVE_FONT = options.Font
     ACTIVE_ASSET_FOLDER = self.AssetFolder
     self.TabMethods = AxelUI.TabMethods
-    self.Gui = new("ScreenGui", { Name = globalKey, IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global }, guiParent)
+    self.Gui = new("ScreenGui", { Name = globalKey, IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global }, resolveParent())
     _G[globalKey] = self
-    windowRegistry[globalKey] = self
     AxelUI._activeWindow = self
 
     self.Window = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = self.Theme.Background, BackgroundTransparency = self.GlassEnabled and self.GlassTransparency or 0, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = self.DesktopSize, ClipsDescendants = true }, self.Gui)
@@ -4128,15 +3622,12 @@ function AxelUI.new(options)
         }),
         Offset = Vector2.new(-1, 0),
     }, self.GlowStroke)
-    if self.AnimatedBorder then
+    if self.AnimatedBorder and self.AnimateAccents then
         local edgeInfo = TweenInfo.new(self.BorderAnimationDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false)
         local edgeOk, edgeTween = pcall(function()
             return TweenService:Create(self.EdgeGradient, edgeInfo, { Offset = Vector2.new(1, 0) })
         end)
-        if edgeOk and edgeTween then
-            self._edgeTween = edgeTween
-            if self._open then edgeTween:Play() end
-        end
+        if edgeOk and edgeTween then self._edgeTween = edgeTween; edgeTween:Play() end
     end
     connect(self, self.Window.MouseEnter, function() tween(self.GlowStroke, { Transparency = 0.025, Thickness = 2 }, 0.18) end)
     connect(self, self.Window.MouseLeave, function() tween(self.GlowStroke, { Transparency = 0.24, Thickness = 1.45 }, 0.2) end)
@@ -4221,14 +3712,12 @@ function AxelUI.new(options)
         addButtonGlass(self, button, 0.08)
         pressAnimation(self, button)
         connect(self, button.MouseEnter, function()
-            tween(button, { BackgroundColor3 = self.Theme.Element:Lerp(self.Theme.Accent, 0.2) }, 0.12)
-            tween(buttonStroke, { Color = self.Theme.Accent2, Transparency = 0.04, Thickness = 1.25 }, 0.12)
-            setIconTint(buttonIcon, self.Theme.Accent2, 0.12)
+            tween(button, { BackgroundColor3 = self.Theme.Element }, 0.12)
+            tween(buttonStroke, { Color = self.Theme.Text, Transparency = 0.04 }, 0.12)
         end)
         connect(self, button.MouseLeave, function()
             tween(button, { BackgroundColor3 = self.Theme.Background }, 0.16)
-            tween(buttonStroke, { Color = self.Theme.Border, Transparency = 0.16, Thickness = 1 }, 0.16)
-            setIconTint(buttonIcon, self.Theme.Text, 0.16)
+            tween(buttonStroke, { Color = self.Theme.Border, Transparency = 0.16 }, 0.16)
         end)
         connect(self, button.MouseButton1Click, callback)
         return button
@@ -4326,13 +3815,10 @@ function AxelUI.new(options)
         avatar.Visible = false
         avatarFallback.Visible = true
     end, 5, avatarRetries)
-    local localPlayer = Players.LocalPlayer
-    local inGameUsername = localPlayer and tostring(localPlayer.Name or "player") or "player"
-    local localDisplayName = localPlayer and tostring(localPlayer.DisplayName or localPlayer.Name or "Axel User") or "Axel User"
-    local profileName = textLabel(profile, localDisplayName, 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 7); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
-    local profileUsername = textLabel(profile, "@" .. inGameUsername, 9, self.Theme.Danger, false); profileUsername.Position = UDim2.fromOffset(46, 27); profileUsername.Size = UDim2.new(1, -54, 0, 14); profileUsername.TextTruncate = Enum.TextTruncate.AtEnd
+    local profileName = textLabel(profile, Players.LocalPlayer and Players.LocalPlayer.DisplayName or "Axel User", 11, self.Theme.Text, true); profileName.Position = UDim2.fromOffset(46, 8); profileName.Size = UDim2.new(1, -54, 0, 17); profileName.TextTruncate = Enum.TextTruncate.AtEnd
+    local profileState = textLabel(profile, "Ready to play", 9, self.Theme.SubText, false); profileState.Position = UDim2.fromOffset(46, 27); profileState.Size = UDim2.new(1, -54, 0, 14)
     local footer = textLabel(sidebar, options.Footer or "AxelUI Library", 9, self.Theme.Muted, false); footer.Position = UDim2.new(0, 14, 1, -50); footer.Size = UDim2.new(1, -28, 0, 40); footer.TextWrapped = true; footer.TextYAlignment = Enum.TextYAlignment.Top
-    self.ProfileCard, self.ProfileAvatar, self.ProfileName, self.ProfileUsername = profile, avatar, profileName, profileUsername
+    self.ProfileCard, self.ProfileAvatar, self.ProfileName = profile, avatar, profileName
     self._profileAvatarRetries = avatarRetries
     self.Footer = footer
 
@@ -4462,6 +3948,30 @@ function AxelUI.new(options)
         if processed or self._destroyed then return end
         if keyMatches(input, self.ToggleKeybind) and not self._keybindOwner then self:Toggle() end
     end)
+    self._fpsFrames = 0
+    self._fpsLastSample = os.clock()
+    connect(self, RunService.RenderStepped, function()
+        if self._destroyed then return end
+        self._fpsFrames += 1
+        local now = os.clock()
+        local elapsed = now - self._fpsLastSample
+        if elapsed >= 0.5 then
+            local fps = math.floor(self._fpsFrames / elapsed + 0.5)
+            self._fpsFrames = 0
+            self._fpsLastSample = now
+            if self.FpsValue then self.FpsValue.Text = tostring(fps) end
+            if self.RestoreFpsText then self.RestoreFpsText.Text = tostring(fps) .. " FPS" end
+            if self.RestorePingText then
+                local player = Players.LocalPlayer
+                local pingOk, pingSeconds = pcall(function()
+                    return player and player:GetNetworkPing()
+                end)
+                self.RestorePingText.Text = pingOk and type(pingSeconds) == "number"
+                    and (tostring(math.max(0, math.floor(pingSeconds * 1000 + 0.5))) .. " ms")
+                    or "-- ms"
+            end
+        end
+    end)
     connect(self, UserInputService.InputEnded, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.Touch then
             self._dragging = false
@@ -4525,49 +4035,21 @@ function AxelUI.new(options)
     local loadingBar = new("Frame", { BackgroundColor3 = self.Theme.Element, BorderSizePixel = 0, Size = UDim2.new(1, -44, 0, 5), Position = UDim2.fromOffset(22, 104), ZIndex = 102 }, loaderCard); corner(loadingBar, 4)
     local loadingFill = new("Frame", { BackgroundColor3 = self.Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, 0, 1, 0), ZIndex = 103 }, loadingBar); corner(loadingFill, 4)
     local loadingHint = textLabel(loaderCard, "Loading modules", 9, self.Theme.Muted, false); loadingHint.Position = UDim2.fromOffset(22, 119); loadingHint.Size = UDim2.new(1, -44, 0, 16); loadingHint.ZIndex = 102
-    self._loadingOverlay = overlay
-    self._loadingFinished = false
-    self._loadingStartedAt = os.clock()
-    if self.ReduceEffects then
-        self.Scale.Scale = 1
-        loaderScale.Scale = 1
-        loadingFill.Size = UDim2.fromScale(1, 1)
-    else
-        tween(self.Scale, { Scale = 1 }, 0.45, Enum.EasingStyle.Back)
-        tween(loaderScale, { Scale = 1 }, 0.48, Enum.EasingStyle.Back)
-        tween(loadingFill, { Size = UDim2.fromScale(1, 1) }, 0.72, Enum.EasingStyle.Quint)
-    end
-    function self:FinishLoading()
-        if self._destroyed or self._loadingFinished then return false end
-        self._loadingFinished = true
-        local minDisplay = self.ReduceEffects and 0.12 or 0.72
-        local remaining = math.max(0, minDisplay - (os.clock() - (self._loadingStartedAt or os.clock())))
-        task.delay(remaining, function()
-            if self._destroyed or not overlay.Parent then return end
-            if self.ReduceEffects then
-                overlay:Destroy()
-                self._loadingOverlay = nil
-                return
-            end
-            tween(loaderScale, { Scale = 0.94 }, 0.16, Enum.EasingStyle.Quad)
-            tween(overlay, { BackgroundTransparency = 1 }, 0.28)
-            tween(loaderCard, { BackgroundTransparency = 1 }, 0.22)
-            fadeIcon(overlayIcon, 0.2)
-            tween(loadingTitle, { TextTransparency = 1 }, 0.2)
-            tween(loadingText, { TextTransparency = 1 }, 0.2)
-            tween(loadingHint, { TextTransparency = 1 }, 0.2)
-            tween(loadingBar, { BackgroundTransparency = 1 }, 0.2)
-            tween(loadingFill, { BackgroundTransparency = 1 }, 0.2)
-            task.delay(0.3, function()
-                if overlay.Parent then overlay:Destroy() end
-                if self._loadingOverlay == overlay then self._loadingOverlay = nil end
-            end)
-        end)
-        return true
-    end
-    local loadingTimeout = math.clamp(tonumber(options.LoadingTimeout) or 1.5, 1, 30)
-    task.delay(loadingTimeout, function()
-        if not self._loadingFinished and not self._destroyed then self:FinishLoading() end
+    tween(self.Scale, { Scale = 1 }, 0.45, Enum.EasingStyle.Back)
+    tween(loaderScale, { Scale = 1 }, 0.48, Enum.EasingStyle.Back)
+    tween(loadingFill, { Size = UDim2.fromScale(1, 1) }, 0.72, Enum.EasingStyle.Quint)
+    task.delay(0.78, function()
+        if self._destroyed or not overlay.Parent then return end
+        tween(loaderScale, { Scale = 0.94 }, 0.16, Enum.EasingStyle.Quad)
+        tween(overlay, { BackgroundTransparency = 1 }, 0.28)
+        tween(loaderCard, { BackgroundTransparency = 1 }, 0.22)
+        fadeIcon(overlayIcon, 0.2)
+        tween(loadingTitle, { TextTransparency = 1 }, 0.2)
+        tween(loadingText, { TextTransparency = 1 }, 0.2)
+        tween(loadingHint, { TextTransparency = 1 }, 0.2)
+        tween(loadingBar, { BackgroundTransparency = 1 }, 0.2)
+        tween(loadingFill, { BackgroundTransparency = 1 }, 0.2)
+        task.delay(0.3, function() if overlay.Parent then overlay:Destroy() end end)
     end)
 
     if self.StartMinimized then
@@ -4581,8 +4063,6 @@ function AxelUI.new(options)
         if restoreStroke then restoreStroke.Transparency = 0.04 end
         tween(self.RestoreScale, { Scale = 1 }, 0.34, Enum.EasingStyle.Back)
     end
-    -- The sampler also feeds the floating restore card in minimized mode.
-    setFpsSampling(self, true)
 
     function self:CreateTab(data) return self:AddTab(data) end
     function self:WindowToggle() return self:Toggle() end
@@ -4600,8 +4080,7 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.26
-AxelUI.BuildId = "8.26.0-v72-toggle-path"
+AxelUI.Version = 7.2
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
