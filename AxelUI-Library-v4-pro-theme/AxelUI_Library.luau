@@ -4008,21 +4008,42 @@ function AxelUI.new(options)
     local previousWindows = {}
     if windowRegistry[globalKey] then table.insert(previousWindows, windowRegistry[globalKey]) end
     if _G[globalKey] then table.insert(previousWindows, _G[globalKey]) end
+    if sharedEnvironment[globalKey] then table.insert(previousWindows, sharedEnvironment[globalKey]) end
     if AxelUI._activeWindow then table.insert(previousWindows, AxelUI._activeWindow) end
     for _, previous in ipairs(previousWindows) do
         if previous and not seenWindows[previous] then
             seenWindows[previous] = true
             local matchesName = previous == windowRegistry[globalKey]
+                or previous == _G[globalKey]
+                or previous == sharedEnvironment[globalKey]
                 or (type(previous) == "table" and previous._globalKey == globalKey)
-            if matchesName and type(previous) == "table" and type(previous.Unload) == "function" then
-                pcall(function() previous:Unload() end)
+            if matchesName and type(previous) == "table" then
+                local cleanup = type(previous.Unload) == "function" and previous.Unload or previous.Destroy
+                if type(cleanup) == "function" then pcall(cleanup, previous) end
             end
         end
     end
     sharedEnvironment.__AxelUI_WindowRegistry = windowRegistry
     local guiParent = resolveParent()
-    if guiParent then
-        local childrenOk, children = pcall(function() return guiParent:GetChildren() end)
+    -- An executor may change the parent it exposes between runs. Remove only
+    -- this window's old ScreenGui from every supported UI parent, not just the
+    -- parent selected for the new window.
+    local guiParents, seenParents = {}, {}
+    local function addGuiParent(parent)
+        if typeof(parent) == "Instance" and not seenParents[parent] then
+            seenParents[parent] = true
+            table.insert(guiParents, parent)
+        end
+    end
+    addGuiParent(guiParent)
+    pcall(function() if type(gethui) == "function" then addGuiParent(gethui()) end end)
+    pcall(function() addGuiParent(game:GetService("CoreGui")) end)
+    pcall(function()
+        local player = Players.LocalPlayer
+        if player then addGuiParent(player:FindFirstChildOfClass("PlayerGui")) end
+    end)
+    for _, parent in ipairs(guiParents) do
+        local childrenOk, children = pcall(function() return parent:GetChildren() end)
         if childrenOk then
             for _, child in ipairs(children) do
                 if child.Name == globalKey and child:IsA("ScreenGui") then
@@ -4600,8 +4621,8 @@ function AxelUI:RegisterIcons(map)
     return self
 end
 
-AxelUI.Version = 8.26
-AxelUI.BuildId = "8.26.0-v72-toggle-path"
+AxelUI.Version = 8.27
+AxelUI.BuildId = "8.27.0-old-window-cleanup"
 
 function AxelUI.CreateWindow(first, second)
     return AxelUI.new(second or first)
