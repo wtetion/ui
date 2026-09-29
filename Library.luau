@@ -1587,6 +1587,8 @@ function AxelUI:_applyResponsive()
         self.Header.Size = UDim2.new(1, -64, 0, 50)
         self.Sidebar.Position = UDim2.fromOffset(0, 0)
         self.Sidebar.Size = UDim2.new(0, 64, 1, 0)
+        self.TabList.Position = UDim2.fromOffset(8, 58)
+        self.TabList.Size = UDim2.new(1, -16, 1, -66)
         self.PageHolder.Position = UDim2.fromOffset(64, 50)
         self.PageHolder.Size = UDim2.new(1, -64, 1, -50)
         self.NavTitle.Visible = false
@@ -1634,6 +1636,10 @@ function AxelUI:_applyResponsive()
         self.Header.Size = UDim2.new(1, -170, 0, 58)
         self.Sidebar.Position = UDim2.fromOffset(0, 0)
         self.Sidebar.Size = UDim2.new(0, 170, 1, 0)
+        self.TabList.Position = UDim2.fromOffset(8, 112)
+        -- Reserve the profile card and footer at the bottom of the sidebar.
+        -- The old -192 inset let the scroll viewport run behind the profile.
+        self.TabList.Size = UDim2.new(1, -16, 1, -232)
         self.PageHolder.Position = UDim2.fromOffset(170, 58)
         self.PageHolder.Size = UDim2.new(1, -170, 1, -58)
         self.NavTitle.Visible = true
@@ -4324,7 +4330,20 @@ function AxelUI.new(options)
     new("Frame", { BackgroundColor3 = self.Theme.Border, BackgroundTransparency = 0.35, BorderSizePixel = 0, Position = UDim2.fromOffset(14, 70), Size = UDim2.new(1, -28, 0, 1) }, sidebar)
     local navTitle = textLabel(sidebar, "NAVIGATION", 9, self.Theme.Muted, true); navTitle.Position = UDim2.fromOffset(14, 84); navTitle.Size = UDim2.new(1, -28, 0, 16)
     self.NavTitle = navTitle
-    self.TabList = new("ScrollingFrame", { Active = true, AutomaticCanvasSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(), Position = UDim2.fromOffset(8, 112), ScrollBarImageColor3 = self.Theme.Accent, ScrollBarThickness = 2, Size = UDim2.new(1, -16, 1, -192) }, sidebar)
+    self.TabList = new("ScrollingFrame", {
+        Active = true,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        CanvasSize = UDim2.new(),
+        ClipsDescendants = true,
+        Position = UDim2.fromOffset(8, 112),
+        ScrollBarImageColor3 = self.Theme.Accent,
+        ScrollBarImageTransparency = 0.15,
+        ScrollBarThickness = 2,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        Size = UDim2.new(1, -16, 1, -232),
+    }, sidebar)
     new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, self.TabList)
     local profile = new("Frame", { BackgroundColor3 = self.Theme.Element, BackgroundTransparency = 0, BorderSizePixel = 0, Position = UDim2.new(0, 12, 1, -112), Size = UDim2.new(1, -24, 0, 52) }, sidebar)
     corner(profile, 11); stroke(profile, self.Theme.Border, 0.28, 1)
