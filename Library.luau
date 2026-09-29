@@ -2316,7 +2316,14 @@ local pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, righ
     else
         pageBody, columns, leftColumn, rightColumn, columnLayout, leftLayout, rightLayout = makePageColumns(self.Window, self.Page, 98)
     end
-    local card, body, layout = makeSubTabCard(self.Window, leftColumn, subtab.Name)
+    local card, body, layout
+    if data.NoDefaultCard == true then
+        -- Section-based pages already provide their own cards. Keep the
+        -- column available for direct controls without adding an empty card.
+        body, layout = leftColumn, leftLayout
+    else
+        card, body, layout = makeSubTabCard(self.Window, leftColumn, subtab.Name)
+    end
     subtab.PageBody, subtab.Columns = pageBody, columns
     subtab.LeftBody, subtab.RightBody = leftColumn, rightColumn
     subtab.ColumnLayout, subtab.Layout = columnLayout, layout
@@ -2882,7 +2889,7 @@ end
 function AxelUI.SectionMethods:AddSlider(data)
     data = data or {}
     data.Icon = data.Icon or "chart"
-    data.RightReserved = data.RightReserved or 145
+    data.RightReserved = data.RightReserved or 160
     local row, inner = self.Window:_makeRow(self.Body, data, data.Height or 40)
     local minimum = tonumber(data.Min or data.Minimum) or 0
     local maximum = math.max(minimum, tonumber(data.Max or data.Maximum) or 100)
@@ -2900,15 +2907,18 @@ function AxelUI.SectionMethods:AddSlider(data)
         if precision > 0 then formatted = formatted:gsub("(%..-)0+$", "%1"):gsub("%.$", "") end
         return formatted .. tostring(data.Suffix or "")
     end
-    local valueText = textLabel(inner, "", 11, self.Window.Theme.Text, true)
-    valueText.Size = UDim2.fromOffset(36, 18)
-    valueText.Position = UDim2.new(1, -151, 0.5, -9)
-    valueText.TextXAlignment = Enum.TextXAlignment.Right
+    local valueText = textLabel(inner, "", 11, self.Window.Theme.Accent2, true)
+    valueText.Size = UDim2.fromOffset(44, 22)
+    valueText.Position = UDim2.new(1, -158, 0.5, -11)
+    valueText.TextXAlignment = Enum.TextXAlignment.Center
+    valueText.BackgroundColor3 = self.Window.Theme.Element
+    valueText.BackgroundTransparency = 0.08
     valueText.TextTruncate = Enum.TextTruncate.AtEnd
-    valueText.TextStrokeColor3 = self.Window.Theme.Background
-    valueText.TextStrokeTransparency = 0.72
+    corner(valueText, 6)
+    stroke(valueText, self.Window.Theme.Border, 0.25, 1)
     valueText.Visible = data.ShowValue ~= false
-    valueText.ZIndex = 12
+    -- Global ZIndex requires this to stay above the row's nested frames.
+    valueText.ZIndex = math.max(valueText.ZIndex, inner.ZIndex + 12)
     local bar = new("Frame", { BackgroundColor3 = self.Window.Theme.Element, Size = UDim2.fromOffset(92, 5), Position = UDim2.new(1, -106, 0.5, -2), ZIndex = 8 }, inner)
     corner(bar, 4)
     local fill = new("Frame", { BackgroundColor3 = self.Window.Theme.Accent, Size = UDim2.new(0, 0, 1, 0), ZIndex = 9 }, bar)
@@ -3324,6 +3334,16 @@ function AxelUI.SectionMethods:AddMultiDropdown(data)
         for index, value in ipairs(selected) do result[index] = value end
         return result
     end
+    function handle:SetOptions(nextOptions)
+        if popup then close() end
+        options = type(nextOptions) == "table" and nextOptions or { nextOptions }
+        local retained = {}
+        for _, option in ipairs(options) do
+            if selectedSet[tostring(option)] then table.insert(retained, option) end
+        end
+        self:Set(retained, true)
+    end
+    handle.SetItems = handle.SetOptions
     connectActivated(self.Window, selector, open)
     pressAnimation(self.Window, selector)
     self.Window:_registerFlag(data.Flag, handle)
@@ -3638,9 +3658,10 @@ function AxelUI.SectionMethods:AddProfileCard(data)
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Image = "",
+        ImageTransparency = 0,
         ScaleType = Enum.ScaleType.Crop,
         Size = UDim2.fromScale(1, 1),
-        Visible = false,
+        Visible = true,
         ZIndex = 7,
     }, avatarHolder)
     corner(avatar, 25)
@@ -3679,9 +3700,12 @@ function AxelUI.SectionMethods:AddProfileCard(data)
             if source ~= avatarImage then table.insert(retries, avatarImage) end
         end
         if source then
+            avatar.Visible = true
+            avatarFallback.Visible = true
             avatar.Image = source
             watchImage(avatar, function()
                 avatar.Visible = true
+                avatarFallback.Visible = false
             end, function()
                 avatar.Visible = false
                 avatarFallback.Visible = true
